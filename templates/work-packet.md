@@ -16,7 +16,7 @@
 ## Context
 
 **Key Files:**
-- `src/path/to/relevant/code.ts`
+- `internal/path/to/relevant/code.go`
 - `docs/relevant-documentation.md`
 
 **Background:**
@@ -39,11 +39,11 @@
 
 [If this packet has soft dependencies with others, define the interface here]
 
-```typescript
+```go
 // Example: API contract this agent should implement/consume
-interface UserService {
-  getUser(id: string): Promise<User>;
-  updateUser(id: string, data: Partial<User>): Promise<User>;
+type UserService interface {
+    GetUser(ctx context.Context, id string) (*User, error)
+    UpdateUser(ctx context.Context, id string, data *UserUpdate) (*User, error)
 }
 ```
 

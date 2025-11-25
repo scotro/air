@@ -76,7 +76,7 @@ When agents signal completion:
 # Review each agent's work
 cd worktrees/agent-auth
 git diff main --stat
-npm test && npm run lint
+go test ./... && golangci-lint run
 
 # Merge completed work
 git checkout main

@@ -470,7 +470,7 @@ agent-list
 # 1. Review each completed agent
 cd worktrees/agent-auth
 git diff main --stat
-npm test && npm run lint
+go test ./... && golangci-lint run
 git log main..HEAD
 
 # 2. Switch to main and merge
@@ -700,9 +700,8 @@ agent-status
 Always test before removing:
 ```bash
 cd worktrees/agent-name
-npm test
-npm run lint
-npm run typecheck  # if applicable
+go test ./...
+golangci-lint run
 git diff main --stat
 
 # Only then:

@@ -14,8 +14,8 @@ When blocked or done, clearly state your status at the start of your response:
 
 ### Integration Preparation
 Before signaling DONE:
-1. Ensure all tests pass: `npm test` (or equivalent)
-2. Run linter: `npm run lint` (or equivalent)
+1. Ensure all tests pass: `go test ./...`
+2. Run linter: `golangci-lint run`
 3. Summarize all files changed
 4. Note any decisions made that should be documented
 5. List any follow-up work identified
@@ -23,5 +23,3 @@ Before signaling DONE:
 ### Coordination Files
 Do not modify these files (they're managed by the human orchestrator):
 - `.claude/packets/*`
-- `.claude/session.md`
-- `.claude/dashboard.md`

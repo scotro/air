@@ -39,17 +39,17 @@ Dependencies:
 - [ ] Roles table with: id, name, permissions (jsonb)
 - [ ] User_roles junction table
 - [ ] Migration files created and tested
-- [ ] Repository with: createUser, getUserById, getUserByEmail, updateUser, deleteUser
+- [ ] Repository with: CreateUser, GetUserByID, GetUserByEmail, UpdateUser, DeleteUser
 - [ ] All repository methods have unit tests
 
 ## Boundaries
-**In Scope:** src/db/schema/, src/db/migrations/, src/lib/repositories/user.ts
-**Out of Scope:** API routes, authentication logic, UI components
+**In Scope:** internal/db/, migrations/, internal/models/user.go
+**Out of Scope:** HTTP handlers, authentication logic
 
 ## Interface Contract
 Export these types for other agents:
-- User, Role, UserWithRoles types
-- UserRepository class with documented methods
+- User, Role, UserWithRoles structs
+- UserRepository interface with documented methods
 ```
 
 **Packet: api-users**
@@ -70,17 +70,17 @@ Export these types for other agents:
 - [ ] Input validation on all endpoints
 
 ## Boundaries
-**In Scope:** src/app/api/users/
-**Out of Scope:** Database schema, permission checks (will be added later), UI
+**In Scope:** internal/handlers/users.go
+**Out of Scope:** Database schema, permission checks (will be added later)
 
 ## Dependencies
 **Soft dependency on db-users:** Start with mock repository, integrate real one in integration round.
 
 ## Interface Contract
-Assume UserRepository exists with standard CRUD methods.
+Assume UserRepository interface exists with standard CRUD methods.
 Use these response shapes:
-- Success: { data: User | User[] }
-- Error: { error: string, code: string }
+- Success: { "data": User | []User }
+- Error: { "error": string, "code": string }
 ```
 
 **Packet: tests-users**
@@ -98,7 +98,7 @@ Use these response shapes:
 - [ ] Test utilities: factories, fixtures, helpers
 
 ## Boundaries
-**In Scope:** src/**/*.test.ts, src/test/
+**In Scope:** internal/**/*_test.go, internal/testutil/
 **Out of Scope:** Implementation code (only tests)
 
 ## Dependencies
@@ -197,7 +197,7 @@ You: "Status update"
 
 Agent: **STATUS: RUNNING**
 Progress:
-- Created test utilities: createTestUser factory, setupTestDb helper
+- Created test utilities: NewTestUser factory, SetupTestDB helper
 - Created mock repository with in-memory store
 - Writing unit tests for repository interface
 
@@ -231,12 +231,12 @@ Completed:
 - Unit tests: 12 tests, all passing
 
 Files changed:
-- src/db/schema/users.ts (new)
-- src/db/schema/roles.ts (new)
-- src/db/migrations/001_create_users_and_roles.sql (new)
-- src/lib/repositories/user.ts (new)
-- src/lib/repositories/user.test.ts (new)
-- src/types/user.ts (new)
+- internal/db/schema.go (new)
+- migrations/001_create_users_and_roles.up.sql (new)
+- migrations/001_create_users_and_roles.down.sql (new)
+- internal/db/user.go (new)
+- internal/db/user_test.go (new)
+- internal/models/user.go (new)
 
 Ready for: Integration review
 ```
@@ -249,7 +249,7 @@ Reason: Need to switch from mock to real repository
 
 Completed so far:
 - All 5 endpoints implemented with mock
-- Input validation using zod
+- Input validation using go-playground/validator
 - Error handling standardized
 
 Blocking: Integration with real UserRepository
@@ -285,9 +285,8 @@ Completed:
 - Proper 404 for missing users
 
 Files changed:
-- src/app/api/users/route.ts (new)
-- src/app/api/users/[id]/route.ts (new)
-- src/lib/validation/user.ts (new)
+- internal/handlers/users.go (new)
+- internal/handlers/validation.go (new)
 
 Ready for: Integration review and test coverage
 ```
@@ -301,7 +300,7 @@ Progress:
 
 ~70% complete
 ```
-Action: "Use transaction rollback pattern - wrap each test in a transaction and rollback after. Check src/test/helpers.ts for existing patterns."
+Action: "Use transaction rollback pattern - wrap each test in a transaction and rollback after. Check internal/testutil/db.go for existing patterns."
 
 ---
 
@@ -312,8 +311,8 @@ Action: "Use transaction rollback pattern - wrap each test in a transaction and 
 ```bash
 cd worktrees/agent-db-users
 git diff main...HEAD --stat
-npm test
-npm run lint
+go test ./...
+golangci-lint run
 ```
 
 Everything passes. Merge:
@@ -327,11 +326,11 @@ git merge feature/db-users
 ```bash
 cd worktrees/agent-api-users
 git rebase main  # Pick up db-users changes
-npm test
-npm run lint
+go test ./...
+golangci-lint run
 ```
 
-Found issue: one test failing due to missing await. Fix is trivial - make it directly or note for agent.
+Found issue: one test failing due to missing error check. Fix is trivial - make it directly or note for agent.
 
 ```bash
 git checkout main  
