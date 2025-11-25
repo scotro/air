@@ -716,6 +716,6 @@ agent-remove name
 ## See Also
 
 - [WORKFLOW.md](WORKFLOW.md) - Complete methodology
-- [TEMPLATES.md](TEMPLATES.md) - Work packet and session templates
+- [templates/](templates/) - Work packet and project setup templates
 - [EXAMPLE-WALKTHROUGH.md](EXAMPLE-WALKTHROUGH.md) - Realistic example
 - [README.md](README.md) - Project overview and quick start

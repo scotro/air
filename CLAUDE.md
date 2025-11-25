@@ -14,7 +14,7 @@ Core philosophy: **Your attention is the bottleneck, not AI capacity.** The work
 .
 ├── README.md                # Project overview and quick start guide
 ├── WORKFLOW.md              # Core methodology and patterns
-├── TEMPLATES.md             # Reusable templates for work packets, sessions, dashboards
+├── templates/               # Work packet and project setup templates
 ├── CLAUDE.example.md        # Example CLAUDE.md for project repositories
 ├── EXAMPLE-WALKTHROUGH.md   # Detailed walkthrough of the workflow in practice
 ├── agent-helpers.sh         # Shell utilities for worktree/packet management
@@ -132,14 +132,11 @@ Contains the complete methodology including:
 - Risk calibration (autonomous/standard/high-touch modes)
 - Anti-patterns to avoid
 
-### TEMPLATES.md
+### templates/
 
-Provides templates for:
-- **Work Packet Template**: Structure for defining agent assignments with objectives, acceptance criteria, boundaries, interface contracts, and signal protocol
-- **Tracking Dashboard Template**: Live status tracking for all active agents
-- **Session Log Template**: Session planning and round-by-round logging
-- **CLAUDE.md Additions**: Template for adding concurrent workflow support to project repositories
-- **Quick Reference Card**: One-page printable reference
+Provides reusable templates:
+- **work-packet.md**: Structure for defining agent assignments with objectives, acceptance criteria, boundaries, interface contracts, and signal protocol
+- **claude-additions.md**: Template for adding concurrent workflow support to project repositories
 
 ### CLAUDE.example.md
 
@@ -178,7 +175,7 @@ Complete reference documentation for the shell utilities. Includes:
 When updating workflow documentation:
 - Keep README.md welcoming and focused on quick value for newcomers
 - Keep WORKFLOW.md focused on methodology and patterns
-- Keep TEMPLATES.md focused on reusable structures
+- Keep templates/ focused on essential, reusable structures
 - Ensure EXAMPLE-WALKTHROUGH.md stays realistic and practical
 - Update CLAUDE.example.md to reflect any new workflow features
 - Keep AGENT-HELPERS.md synchronized with changes to agent-helpers.sh

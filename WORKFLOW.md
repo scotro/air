@@ -24,7 +24,7 @@ Work flows through three types of rounds, cycling as needed:
 1. Define the overall objective for this work session
 2. Identify natural decomposition points (by feature, layer, or domain)
 3. Map dependencies between packets (independent, sequential, soft)
-4. Write work packets using the template in `TEMPLATES.md`
+4. Write work packets using `templates/work-packet.md`
 5. Prepare isolated environments (git worktrees)
 6. Dispatch agents with initial context
 

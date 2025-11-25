@@ -107,7 +107,7 @@ A work packet is a unit of work for one agent. It includes:
 - **Boundaries**: What's in scope and out of scope
 - **Interface Contracts**: For agents with soft dependencies
 
-Template: [TEMPLATES.md](TEMPLATES.md)
+Template: [templates/work-packet.md](templates/work-packet.md)
 
 ### The Rounds Pattern
 
@@ -143,7 +143,7 @@ Template: [TEMPLATES.md](TEMPLATES.md)
 | File | Purpose |
 |------|---------|
 | [WORKFLOW.md](WORKFLOW.md) | Complete methodology and patterns |
-| [TEMPLATES.md](TEMPLATES.md) | Work packet, session, dashboard templates |
+| [templates/](templates/) | Work packet and project setup templates |
 | [EXAMPLE-WALKTHROUGH.md](EXAMPLE-WALKTHROUGH.md) | Detailed realistic example |
 | [CLAUDE.example.md](CLAUDE.example.md) | Template for project CLAUDE.md files |
 | [agent-helpers.sh](agent-helpers.sh) | Shell utilities for automation |
@@ -234,7 +234,7 @@ This workflow optimizes for human cognitive bandwidth by:
 ## Learn More
 
 - **Methodology**: Read [WORKFLOW.md](WORKFLOW.md) for the complete approach
-- **Templates**: Browse [TEMPLATES.md](TEMPLATES.md) for all reusable structures
+- **Templates**: Browse [templates/](templates/) for reusable structures
 - **Example**: Walk through [EXAMPLE-WALKTHROUGH.md](EXAMPLE-WALKTHROUGH.md) to see it in action
 - **Shell Utilities**: See [AGENT-HELPERS.md](AGENT-HELPERS.md) for command reference
 
