@@ -19,6 +19,13 @@ Before signaling DONE:
 3. Summarize all files changed
 4. Note any decisions made that should be documented
 5. List any follow-up work identified
+6. Commit your changes with a descriptive message
+
+### Avoiding Merge Conflicts
+You are one of several agents working in parallel. To avoid merge conflicts:
+- **Only create files within your packet's stated boundaries**
+- Define mocks/stubs in a unique and locally scoped way
+- Never modify files outside your scoipe - signal BLOCKED if you need changes elsewhere to proceed
 
 ### Coordination Files
 Do not modify these files (they're managed by the human orchestrator):
