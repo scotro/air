@@ -37,26 +37,26 @@ air init
 
 Creates `.air/` directory. Does not touch `.claude/` or `CLAUDE.md`.
 
-### Plan work packets
+### Plan work
 
 ```bash
 air plan
 ```
 
-Claude helps decompose your work into parallelizable packets stored in `.air/packets/`.
+Claude helps decompose your work into parallelizable plans stored in `.air/plans/`.
 
 ```bash
-air plan list            # View packets
-air plan show <name>     # View specific packet
-air plan archive <name>  # Archive a packet
-air plan restore <name>  # Restore archived packet
+air plan list            # View plans
+air plan show <name>     # View specific plan
+air plan archive <name>  # Archive a plan
+air plan restore <name>  # Restore archived plan
 ```
 
 ### Run agents
 
 ```bash
-air run <packet1> <packet2> ...
-air run all           # Run all packets
+air run <plan1> <plan2> ...
+air run all           # Run all plans
 ```
 
 Creates worktrees, starts tmux session, launches Claude agents automatically.
@@ -72,10 +72,10 @@ air clean <name>      # Remove specific worktree
 
 ## How it works
 
-1. `air plan` launches Claude with orchestration context to create work packets
+1. `air plan` launches Claude with orchestration context to create plans
 2. `air run` creates isolated git worktrees and starts agents in tmux
 3. Each agent receives workflow context via `--append-system-prompt`
-4. Agents work on their packets, signal DONE when complete
+4. Agents work on their plans, signal DONE when complete
 5. `air integrate` helps merge completed work back to main
 
 ## Directory structure
@@ -83,7 +83,7 @@ air clean <name>      # Remove specific worktree
 ```
 .air/               # Entire directory is gitignored
 ├── context.md      # Workflow instructions (injected to all agents)
-├── packets/        # Work packet definitions
+├── plans/          # Plan definitions
 └── worktrees/      # Git worktrees for each agent
 ```
 

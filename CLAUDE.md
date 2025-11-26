@@ -28,10 +28,10 @@ internal/          # (future) shared packages
 
 ## Key Concepts
 
-- **Packets**: Work units defined in `.air/packets/*.md`
+- **Plans**: Work units defined in `.air/plans/*.md`
 - **Context**: Workflow instructions in `.air/context.md`, injected via `--append-system-prompt`
 - **Worktrees**: Isolated git worktrees in `.air/worktrees/` for parallel work
-- **Branches**: Named `air/<packet-name>`
+- **Branches**: Named `air/<plan-name>`
 
 ## Design Principles
 

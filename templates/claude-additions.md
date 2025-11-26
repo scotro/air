@@ -1,10 +1,10 @@
 ## Concurrent Workflow Support
 
-### Work Packet Location
-Active work packets are stored in `.claude/packets/`. Read your assigned packet before starting work.
+### Plan Location
+Active plans are stored in `.air/plans/`. Read your assigned plan before starting work.
 
 ### Boundary Enforcement
-You are working in an isolated worktree. Do NOT modify files outside your packet's stated scope. If you need changes outside your boundaries, signal BLOCKED and explain what you need.
+You are working in an isolated worktree. Do NOT modify files outside your plan's stated scope. If you need changes outside your boundaries, signal BLOCKED and explain what you need.
 
 ### Signaling
 When blocked or done, clearly state your status at the start of your response:
@@ -23,10 +23,10 @@ Before signaling DONE:
 
 ### Avoiding Merge Conflicts
 You are one of several agents working in parallel. To avoid merge conflicts:
-- **Only create files within your packet's stated boundaries**
+- **Only create files within your plan's stated boundaries**
 - Define mocks/stubs in a unique and locally scoped way
-- Never modify files outside your scoipe - signal BLOCKED if you need changes elsewhere to proceed
+- Never modify files outside your scope - signal BLOCKED if you need changes elsewhere to proceed
 
 ### Coordination Files
 Do not modify these files (they're managed by the human orchestrator):
-- `.claude/packets/*`
+- `.air/plans/*`

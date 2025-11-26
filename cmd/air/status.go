@@ -23,14 +23,14 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	entries, err := os.ReadDir(worktreesDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			fmt.Println("No active agents. Run 'air run <packets>' to start.")
+			fmt.Println("No active agents. Run 'air run <plans>' to start.")
 			return nil
 		}
 		return fmt.Errorf("failed to read worktrees: %w", err)
 	}
 
 	if len(entries) == 0 {
-		fmt.Println("No active agents. Run 'air run <packets>' to start.")
+		fmt.Println("No active agents. Run 'air run <plans>' to start.")
 		return nil
 	}
 

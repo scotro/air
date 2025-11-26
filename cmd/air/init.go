@@ -13,7 +13,7 @@ import (
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize project for AIR workflow",
-	Long:  `Creates .air/ directory with context and packets subdirectories.`,
+	Long:  `Creates .air/ directory with context and plans subdirectories.`,
 	RunE:  runInit,
 }
 
@@ -24,7 +24,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create directories
-	dirs := []string{".air", ".air/packets"}
+	dirs := []string{".air", ".air/plans"}
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return fmt.Errorf("failed to create %s: %w", dir, err)
@@ -49,7 +49,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("\nInitialized AIR workflow. Next steps:")
 	fmt.Println("  air plan              # Start planning session")
-	fmt.Println("  air plan list         # View packets")
+	fmt.Println("  air plan list         # View plans")
 	fmt.Println("  air run <names...>    # Launch agents")
 
 	return nil
@@ -105,10 +105,10 @@ You are running in a git worktree at your CURRENT WORKING DIRECTORY. This is you
 The parent repository exists but you must NOT access it. Other agents are working there. Stay isolated.
 
 ### Your Assignment
-Your work packet was provided in your initial prompt. It contains your objective, boundaries, and acceptance criteria.
+Your plan was provided in your initial prompt. It contains your objective, boundaries, and acceptance criteria.
 
 ### Boundaries
-Only modify files within your packet's stated scope. If you need changes outside your boundaries, signal BLOCKED.
+Only modify files within your plan's stated scope. If you need changes outside your boundaries, signal BLOCKED.
 
 ### Signaling
 When blocked or done, clearly state your status:
@@ -117,13 +117,13 @@ When blocked or done, clearly state your status:
 **DONE:** [summary of completed work, files changed, verification steps taken]
 
 ### Before Signaling DONE
-1. All acceptance criteria from your packet are met
+1. All acceptance criteria from your plan are met
 2. Tests pass
 3. Linter passes
 4. Changes committed with descriptive message
 
 ### Avoiding Merge Conflicts
-- Only create/modify files within your packet's stated boundaries
+- Only create/modify files within your plan's stated boundaries
 - Put mocks and stubs in your own directory, not shared locations
 - Signal BLOCKED if you need to modify shared code
 `
