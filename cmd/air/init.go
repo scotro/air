@@ -57,7 +57,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 func updateGitignore() error {
 	gitignorePath := ".gitignore"
-	entries := []string{".air/worktrees/", ".air/launch.sh", ".air/.context", ".air/.assignment"}
+	entry := ".air/"
 
 	// Read existing .gitignore
 	content, err := os.ReadFile(gitignorePath)
@@ -65,19 +65,12 @@ func updateGitignore() error {
 		return fmt.Errorf("failed to read .gitignore: %w", err)
 	}
 
-	// Check which entries need to be added
-	var toAdd []string
-	for _, entry := range entries {
-		if !strings.Contains(string(content), entry) {
-			toAdd = append(toAdd, entry)
-		}
-	}
-
-	if len(toAdd) == 0 {
+	// Check if already present
+	if strings.Contains(string(content), entry) {
 		return nil
 	}
 
-	// Append entries
+	// Append entry
 	f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open .gitignore: %w", err)
@@ -89,14 +82,8 @@ func updateGitignore() error {
 		f.WriteString("\n")
 	}
 
-	// Only add header if we're adding new entries
-	if !strings.Contains(string(content), "# AIR workflow") {
-		f.WriteString("\n# AIR workflow\n")
-	}
-
-	for _, entry := range toAdd {
-		f.WriteString(entry + "\n")
-	}
+	f.WriteString("\n# AIR workflow\n")
+	f.WriteString(entry + "\n")
 	fmt.Println("Updated .gitignore")
 
 	return nil
