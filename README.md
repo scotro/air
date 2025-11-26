@@ -2,6 +2,12 @@
 
 Orchestrate multiple Claude Code agents working in parallel on decomposed tasks.
 
+## Requirements
+
+- **Git** - for worktree management
+- **tmux** - for running multiple agents in parallel
+- **Claude Code** - the [Claude CLI](https://docs.anthropic.com/en/docs/claude-code)
+
 ## Install
 
 ### Quick install (recommended)

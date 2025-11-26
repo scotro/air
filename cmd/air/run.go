@@ -32,6 +32,13 @@ func runRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not initialized (run 'air init' first)")
 	}
 
+	// Check if .gitignore has uncommitted changes containing .air/
+	// Worktrees are created from committed state, so uncommitted .gitignore
+	// means agents will see .air/ as untracked files
+	if err := checkGitignoreCommitted(); err != nil {
+		return err
+	}
+
 	plansDir := filepath.Join(".air", "plans")
 
 	// Get available plans
@@ -215,4 +222,32 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+func checkGitignoreCommitted() error {
+	// Check if .gitignore has uncommitted changes
+	statusCmd := exec.Command("git", "status", "--porcelain", ".gitignore")
+	output, err := statusCmd.Output()
+	if err != nil {
+		// If git status fails, skip this check
+		return nil
+	}
+
+	status := strings.TrimSpace(string(output))
+	if status == "" {
+		// .gitignore is clean
+		return nil
+	}
+
+	// Check if the uncommitted .gitignore contains .air/
+	content, err := os.ReadFile(".gitignore")
+	if err != nil {
+		return nil
+	}
+
+	if strings.Contains(string(content), ".air/") {
+		return fmt.Errorf(".gitignore has uncommitted changes containing '.air/'\n\nWorktrees are created from committed state, so agents will see .air/ as untracked files.\nCommit .gitignore first:\n  git add .gitignore && git commit -m \"Add .air/ to gitignore\"")
+	}
+
+	return nil
 }

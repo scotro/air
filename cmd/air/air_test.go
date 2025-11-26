@@ -70,6 +70,15 @@ func mustGetwd(t *testing.T) string {
 	return wd
 }
 
+// initAndCommit runs air init and commits the .gitignore change
+// (required for run tests since worktrees are created from committed state)
+func initAndCommit(t *testing.T, dir string) {
+	t.Helper()
+	runAir(t, dir, "init")
+	exec.Command("git", "-C", dir, "add", ".gitignore").Run()
+	exec.Command("git", "-C", dir, "commit", "-m", "Add .air/ to gitignore").Run()
+}
+
 // ============================================================================
 // air init tests
 // ============================================================================
@@ -321,7 +330,7 @@ func TestRun_ShowsPlansWithNoArgs(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	runAir(t, tmpDir, "init")
+	initAndCommit(t, tmpDir)
 
 	// Create test plan
 	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "test.md"), []byte("# Test"), 0644)
@@ -343,7 +352,7 @@ func TestRun_FailsForMissingPlan(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	runAir(t, tmpDir, "init")
+	initAndCommit(t, tmpDir)
 
 	// Create one plan so we get past the "no plans" check
 	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "exists.md"), []byte("# Exists"), 0644)
@@ -358,7 +367,7 @@ func TestRun_CreatesWorktreeDirectory(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	runAir(t, tmpDir, "init")
+	initAndCommit(t, tmpDir)
 
 	// Create test plan
 	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "test.md"), []byte("# Test\n**Objective:** Test"), 0644)
@@ -377,7 +386,7 @@ func TestRun_GeneratesLaunchScript(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	runAir(t, tmpDir, "init")
+	initAndCommit(t, tmpDir)
 
 	// Create test plan
 	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "test.md"), []byte("# Test\n**Objective:** Test"), 0644)
@@ -410,7 +419,7 @@ func TestRun_LaunchScriptContainsPlanContent(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	runAir(t, tmpDir, "init")
+	initAndCommit(t, tmpDir)
 
 	// Create test plan with unique content
 	planContent := "**Objective:** Implement the FOOBAR_UNIQUE_STRING feature"
@@ -438,7 +447,7 @@ func TestClean_RemovesSpecificWorktree(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	runAir(t, tmpDir, "init")
+	initAndCommit(t, tmpDir)
 
 	// Create two plans and run them
 	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "keep.md"), []byte("# Keep"), 0644)
@@ -466,7 +475,7 @@ func TestClean_FailsForNonexistentWorktree(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	runAir(t, tmpDir, "init")
+	initAndCommit(t, tmpDir)
 
 	// Create and run a plan to have at least one worktree
 	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "test.md"), []byte("# Test"), 0644)
@@ -513,6 +522,10 @@ func TestFullWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("init failed: %v\n%s", err, out)
 	}
+
+	// Commit .gitignore (required for worktrees)
+	exec.Command("git", "-C", tmpDir, "add", ".gitignore").Run()
+	exec.Command("git", "-C", tmpDir, "commit", "-m", "Add .air/ to gitignore").Run()
 
 	// 2. Create a plan manually (simulating what air plan would do)
 	plan := `# Plan: feature
