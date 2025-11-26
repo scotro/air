@@ -20,6 +20,12 @@ With no arguments, shows available packets.`,
 	RunE: runRun,
 }
 
+var noAutoAccept bool
+
+func init() {
+	runCmd.Flags().BoolVar(&noAutoAccept, "no-auto-accept", false, "Disable auto-accept mode (require permission for edits)")
+}
+
 func runRun(cmd *cobra.Command, args []string) error {
 	// Check .air/ exists
 	if _, err := os.Stat(".air"); os.IsNotExist(err) {
@@ -64,14 +70,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 		packets = args
 	}
 
-	// Read context for later
-	contextPath := filepath.Join(".air", "context.md")
-	context, err := os.ReadFile(contextPath)
-	if err != nil {
-		return fmt.Errorf("failed to read context: %w", err)
-	}
-
-	// Get the absolute path of the project root (for context.md)
+	// Get the absolute path of the project root
 	projectRoot, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
@@ -110,10 +109,12 @@ func runRun(cmd *cobra.Command, args []string) error {
 	// Kill existing session if present
 	exec.Command("tmux", "kill-session", "-t", sessionName).Run()
 
+	// Absolute path to context file (for shell command substitution)
+	contextPath := filepath.Join(projectRoot, ".air", "context.md")
+
 	// Create new session with first packet
 	firstPacket := packets[0]
 	firstWtPath := filepath.Join(projectRoot, ".air", "worktrees", firstPacket)
-	claudePrompt := fmt.Sprintf("Read .air/packets/%s.md and implement it.", firstPacket)
 
 	// Create session
 	tmuxNew := exec.Command("tmux", "new-session", "-d", "-s", sessionName, "-n", firstPacket, "-c", firstWtPath)
@@ -121,25 +122,54 @@ func runRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create tmux session: %w", err)
 	}
 
-	// Send claude command to first window
-	claudeCmd := fmt.Sprintf("claude --append-system-prompt %q %q", string(context), claudePrompt)
+	// .air directory path (for --add-dir to grant access from worktree)
+	airDir := filepath.Join(projectRoot, ".air")
+
+	// Permission mode flag
+	permissionFlag := ""
+	if !noAutoAccept {
+		permissionFlag = "--permission-mode acceptEdits"
+	}
+
+	// Build claude command:
+	// - --add-dir grants access to .air/ from the worktree
+	// - --permission-mode acceptEdits auto-accepts file edits
+	// - --append-system-prompt injects workflow context
+	// - Initial prompt tells agent to read their packet
+	claudeCmd := fmt.Sprintf(
+		`claude --add-dir '%s' %s --append-system-prompt "$(cat '%s')" "Read %s/packets/%s.md and implement it."`,
+		airDir,
+		permissionFlag,
+		contextPath,
+		airDir,
+		firstPacket,
+	)
 	exec.Command("tmux", "send-keys", "-t", sessionName+":"+firstPacket, claudeCmd, "Enter").Run()
 
 	// Create windows for remaining packets
 	for _, name := range packets[1:] {
 		wtPath := filepath.Join(projectRoot, ".air", "worktrees", name)
-		claudePrompt := fmt.Sprintf("Read .air/packets/%s.md and implement it.", name)
 
 		// Create window
 		exec.Command("tmux", "new-window", "-t", sessionName, "-n", name, "-c", wtPath).Run()
 
 		// Send claude command
-		claudeCmd := fmt.Sprintf("claude --append-system-prompt %q %q", string(context), claudePrompt)
+		claudeCmd := fmt.Sprintf(
+			`claude --add-dir '%s' %s --append-system-prompt "$(cat '%s')" "Read %s/packets/%s.md and implement it."`,
+			airDir,
+			permissionFlag,
+			contextPath,
+			airDir,
+			name,
+		)
 		exec.Command("tmux", "send-keys", "-t", sessionName+":"+name, claudeCmd, "Enter").Run()
 	}
 
-	// Create dashboard window
+	// Create dashboard window (before the agent windows so agents are more prominent)
 	exec.Command("tmux", "new-window", "-t", sessionName, "-n", "dash", "-c", projectRoot).Run()
+
+	// Select first agent window
+	exec.Command("tmux", "select-window", "-t", sessionName+":"+firstPacket).Run()
 
 	fmt.Printf("\nLaunched %d agents in tmux session '%s'\n", len(packets), sessionName)
 	fmt.Println("Attach with: tmux attach -t", sessionName)
