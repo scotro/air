@@ -18,7 +18,7 @@ cmd/air/           # CLI commands (cobra)
 ├── main.go        # Entry point
 ├── root.go        # Root command
 ├── init.go        # air init
-├── plan.go        # air plan, plan list, plan show
+├── plan.go        # air plan, plan list/show/archive/restore
 ├── run.go         # air run
 ├── status.go      # air status
 ├── integrate.go   # air integrate

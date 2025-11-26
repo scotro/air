@@ -35,8 +35,10 @@ air plan
 Claude helps decompose your work into parallelizable packets stored in `.air/packets/`.
 
 ```bash
-air plan list         # View packets
-air plan show <name>  # View specific packet
+air plan list            # View packets
+air plan show <name>     # View specific packet
+air plan archive <name>  # Archive a packet
+air plan restore <name>  # Restore archived packet
 ```
 
 ### Run agents
@@ -53,7 +55,8 @@ Creates worktrees, starts tmux session, launches Claude agents automatically.
 ```bash
 air status            # Check agent progress
 air integrate         # Guide through merging
-air clean             # Remove worktrees
+air clean             # Remove all worktrees
+air clean <name>      # Remove specific worktree
 ```
 
 ## How it works
@@ -67,10 +70,10 @@ air clean             # Remove worktrees
 ## Directory structure
 
 ```
-.air/
+.air/               # Entire directory is gitignored
 ├── context.md      # Workflow instructions (injected to all agents)
 ├── packets/        # Work packet definitions
-└── worktrees/      # Git worktrees (gitignored)
+└── worktrees/      # Git worktrees for each agent
 ```
 
 ## License
