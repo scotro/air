@@ -1,247 +1,86 @@
 # Concurrent AI Agent Workflow
 
-**A systematic approach to managing multiple AI coding agents for professional software development.**
+Manage multiple Claude Code agents working in parallel on decomposed tasks using git worktrees.
 
-## The Problem
-
-When working with AI coding assistants like Claude Code, you're limited by your attention, not the AI's capacity. Context-switching between multiple ongoing tasks destroys productivity, and trying to supervise AI work in real-time creates a bottleneck.
-
-## The Solution
-
-This workflow treats AI agents like capable junior engineers working in parallel:
-- Each agent gets a clearly defined work packet with explicit boundaries
-- Agents work in isolated git worktrees on separate branches
-- You supervise in batches (rounds) rather than hovering continuously
-- Work is integrated systematically after verification
-
-**Result:** Complete 3+ parallel work streams in the time it would take to do one sequentially.
-
-## Quick Start
-
-### 1. Install the Helpers
+## Install
 
 ```bash
-# Clone this repository
 git clone <repo-url> ~/ai-workflow
-cd ~/ai-workflow
-
-# Load the shell utilities
-source agent-helpers.sh
-
-# Add to your shell profile for persistence
-echo "source ~/ai-workflow/agent-helpers.sh" >> ~/.zshrc  # or ~/.bashrc
+~/ai-workflow/install.sh
 ```
 
-### 2. Set Up Your First Session
+Then restart your terminal or `source ~/.zshrc`.
+
+## Initialize a Project
 
 ```bash
-# In your project directory
 cd ~/my-project
+agent-init
+```
 
-# Create work packets for parallel tasks
-packet-create auth       # Authentication feature
-packet-create api        # REST API endpoints
+This creates `.claude/` with settings and workflow commands.
 
-# Edit the packets to define objectives and boundaries
-$EDITOR .claude/packets/auth.md
-$EDITOR .claude/packets/api.md
+## Create Work Packets
 
-# Create isolated worktrees for each agent
+Use Claude to help decompose your work:
+
+```
+> /workflow-setup
+```
+
+Or create packets manually:
+
+```bash
+packet-create auth
+packet-create api
+# Edit .claude/packets/*.md with objectives and boundaries
+```
+
+## Launch Agents
+
+```bash
 agent-create auth
 agent-create api
-
-# Launch agents in tmux
 agent-session auth api
 ```
 
-### 3. Run Execution Rounds
+In each tmux window, start Claude and point it to the packet:
 
-Every 20-30 minutes:
+```
+> Read .claude/packets/auth.md and implement it.
+```
+
+## Integrate
+
+After agents signal DONE:
+
 ```bash
-agent-status    # Quick check on all agents
-agent-list      # See which are running/idle
-```
-
-In each agent's terminal, ask:
-```
-"Summarize your progress and any blockers"
-```
-
-Unblock agents with minimal input, then let them continue.
-
-### 4. Integration Round
-
-When agents signal completion:
-```bash
-# Review each agent's work
-cd worktrees/agent-auth
-git diff main --stat
-go test ./... && golangci-lint run
-
-# Merge completed work
-git checkout main
+# From main project directory (not worktree)
 git merge feature/auth
-
-# Clean up
+git merge feature/api
 agent-remove auth
+agent-remove api
 ```
 
-## Real-World Example
+## Commands
 
-See [EXAMPLE-WALKTHROUGH.md](EXAMPLE-WALKTHROUGH.md) for a detailed walkthrough of building a user management feature with 3 concurrent agents in 3 hours.
-
-**Metrics from that session:**
-- 3 agents working in parallel
-- 4 execution rounds
-- 1 integration round
-- Only 2 meaningful human interventions needed
-- Database, API, and tests completed concurrently
-
-## Core Concepts
-
-### Work Packets
-
-A work packet is a unit of work for one agent. It includes:
-- **Objective**: What "done" looks like in one sentence
-- **Acceptance Criteria**: Specific, verifiable conditions
-- **Boundaries**: What's in scope and out of scope
-- **Interface Contracts**: For agents with soft dependencies
-
-Template: [templates/work-packet.md](templates/work-packet.md)
-
-### The Rounds Pattern
-
-**Setup Round (15-45 min)**: Decompose work, create worktrees, dispatch agents
-
-**Execution Rounds (20-30 min)**: Check status, unblock agents, update tracking
-- Run every 20-30 minutes
-- Provide decisions as constraints, not discussions
-- Defer non-critical questions
-
-**Integration Round (30-60 min)**: Review, test, merge, plan next cycle
-
-### Dependencies
-
-**Independent**: No dependencies, fully parallelizable
 ```
-[Auth Service] ←──────→ [Email Templates]
+agent-init              Initialize project for workflow
+agent-create <name>     Create agent worktree
+agent-list              List agents with status
+agent-remove <name>     Clean up after merge
+agent-session <n>...    Launch agents in tmux
+agent-status            Quick status check
+packet-create <name>    Create work packet
+packet-list             List packets
+agent-help              Show all commands
 ```
-
-**Sequential**: Must complete in order
-```
-[Database Schema] → [Repository] → [API]
-```
-
-**Soft Dependencies**: Can run in parallel with agreed contracts
-```
-[API Design] ~~~~ [Frontend Components]
-(both proceed with agreed interface, reconcile later)
-```
-
-## What's Included
-
-| File | Purpose |
-|------|---------|
-| [WORKFLOW.md](WORKFLOW.md) | Complete methodology and patterns |
-| [templates/](templates/) | Work packet and project setup templates |
-| [EXAMPLE-WALKTHROUGH.md](EXAMPLE-WALKTHROUGH.md) | Detailed realistic example |
-| [CLAUDE.example.md](CLAUDE.example.md) | Template for project CLAUDE.md files |
-| [agent-helpers.sh](agent-helpers.sh) | Shell utilities for automation |
-| [AGENT-HELPERS.md](AGENT-HELPERS.md) | Shell utilities documentation |
-
-## Shell Utilities
-
-The `agent-helpers.sh` script provides commands to reduce mechanical overhead:
-
-```bash
-# Worktree management
-agent-create <name>       # Create agent worktree
-agent-list                # List all agents with status
-agent-remove <name>       # Clean up after merge
-agent-session <n1> <n2>   # Launch multiple agents in tmux
-
-# Work packets
-packet-create <name>      # Create from template
-packet-list               # Show all packets
-
-# Sessions
-session-init [name]       # Initialize session log
-
-# Monitoring
-agent-status              # Check all agents quickly
-agent-help                # Show all commands
-```
-
-See [AGENT-HELPERS.md](AGENT-HELPERS.md) for complete documentation.
-
-## Risk Calibration
-
-Adjust supervision intensity based on risk:
-
-| Risk Level | Work Type | Check Frequency |
-|------------|-----------|-----------------|
-| **Low** | Docs, tests, linting | Every hour |
-| **Medium** | Features, refactoring | Every 20-30 min |
-| **High** | Security, core logic, migrations | Every 10-15 min |
-
-## When to Use This Workflow
-
-**Good fit:**
-- Building features with multiple parallel work streams
-- Large refactorings that can be decomposed
-- Expanding test coverage across multiple modules
-- Documentation updates across multiple areas
-
-**Not needed:**
-- Single, straightforward tasks
-- Exploratory work without clear decomposition
-- Very small projects
-
-## Tips for Success
-
-1. **Invest in setup**: A clear 20-minute setup round enables hours of parallel work
-2. **Write specific packets**: Vague boundaries cause drift and wasted tokens
-3. **Start with 2-3 agents**: Master supervision before scaling up
-4. **Don't hover**: Checking every 5 minutes breaks your focus and doesn't help agents
-5. **Integration is where quality happens**: Don't skip review rounds
-
-## Anti-Patterns to Avoid
-
-❌ **Under-specifying work packets** - Causes agent drift
-❌ **Too many agents at once** - Degrades supervision quality
-❌ **Skipping integration rounds** - Compounds errors
-❌ **No clear boundaries** - Agents touch everything
-❌ **Ignoring drift early** - Wastes time and tokens
-
-## Adding to Your Projects
-
-To use this workflow in your projects:
-
-1. Copy the relevant sections from [CLAUDE.example.md](CLAUDE.example.md) to your project's `CLAUDE.md`
-2. Add concurrent workflow protocols (boundaries, signaling, coordination files)
-3. Customize the quick commands and architecture sections for your project
-
-## Philosophy
-
-> **Your attention is the bottleneck, not AI capacity.**
-
-This workflow optimizes for human cognitive bandwidth by:
-- Batching supervisory work into discrete rounds (not continuous context-switching)
-- Isolating agents to prevent interference
-- Treating agents like capable junior engineers (clear direction, explicit boundaries, regular check-ins)
-- Making supervision async (agents work while you focus elsewhere)
 
 ## Learn More
 
-- **Methodology**: Read [WORKFLOW.md](WORKFLOW.md) for the complete approach
-- **Templates**: Browse [templates/](templates/) for reusable structures
-- **Example**: Walk through [EXAMPLE-WALKTHROUGH.md](EXAMPLE-WALKTHROUGH.md) to see it in action
-- **Shell Utilities**: See [AGENT-HELPERS.md](AGENT-HELPERS.md) for command reference
+- [WORKFLOW.md](WORKFLOW.md) - Full methodology
+- [AGENT-HELPERS.md](AGENT-HELPERS.md) - Shell command docs
 
 ## License
 
-[Add your license here]
-
-## Contributing
-
-[Add contribution guidelines here]
+MIT License. Use it however you want. No warranty.
