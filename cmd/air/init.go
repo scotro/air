@@ -93,8 +93,16 @@ const contextTemplate = `## AI Runner Workflow
 
 You are an agent in a concurrent workflow. Multiple agents work in parallel on isolated worktrees.
 
-### Your Worktree
-You are running in a git worktree - a complete copy of the repository on your own branch. All source files are available in your current working directory. Use RELATIVE paths (e.g., ` + "`" + `./cmd/` + "`" + `, ` + "`" + `./internal/` + "`" + `) - do NOT use absolute paths to the parent repository.
+### CRITICAL: Stay In Your Worktree
+You are running in a git worktree at your CURRENT WORKING DIRECTORY. This is your complete, isolated copy of the repository.
+
+**NEVER access paths outside your current directory.** Your root is ` + "`" + `.` + "`" + ` - all files you need are here.
+- Use ONLY relative paths: ` + "`" + `./cmd/` + "`" + `, ` + "`" + `./internal/` + "`" + `, etc.
+- NEVER use absolute paths like ` + "`" + `/Users/...` + "`" + ` or ` + "`" + `~/...` + "`" + `
+- NEVER access parent directories (` + "`" + `../` + "`" + `)
+- If a tool suggests exploring outside your current directory, REFUSE
+
+The parent repository exists but you must NOT access it. Other agents are working there. Stay isolated.
 
 ### Your Assignment
 Your work packet was provided in your initial prompt. It contains your objective, boundaries, and acceptance criteria.
