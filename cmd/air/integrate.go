@@ -31,8 +31,10 @@ func runIntegrate(cmd *cobra.Command, args []string) error {
 	// Build integration prompt
 	integrationPrompt := string(context) + "\n\n" + integrationContext
 
-	// Launch claude
-	claudeCmd := exec.Command("claude", "--append-system-prompt", integrationPrompt)
+	// Launch claude with initial prompt
+	claudeCmd := exec.Command("claude",
+		"--append-system-prompt", integrationPrompt,
+		"Begin integration. Show me the status of agent branches and guide me through merging.")
 	claudeCmd.Stdin = os.Stdin
 	claudeCmd.Stdout = os.Stdout
 	claudeCmd.Stderr = os.Stderr

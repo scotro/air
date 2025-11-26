@@ -51,8 +51,10 @@ func runPlan(cmd *cobra.Command, args []string) error {
 	// Build orchestration prompt
 	orchestrationPrompt := string(context) + "\n\n" + orchestrationContext
 
-	// Launch claude
-	claudeCmd := exec.Command("claude", "--append-system-prompt", orchestrationPrompt)
+	// Launch claude with initial prompt
+	claudeCmd := exec.Command("claude",
+		"--append-system-prompt", orchestrationPrompt,
+		"Begin orchestration. Ask me what I want to build.")
 	claudeCmd.Stdin = os.Stdin
 	claudeCmd.Stdout = os.Stdout
 	claudeCmd.Stderr = os.Stderr

@@ -1,86 +1,78 @@
-# Concurrent AI Agent Workflow
+# AIR - AI Runner
 
-Manage multiple Claude Code agents working in parallel on decomposed tasks using git worktrees.
+Orchestrate multiple Claude Code agents working in parallel on decomposed tasks.
 
 ## Install
 
 ```bash
-git clone <repo-url> ~/ai-workflow
-~/ai-workflow/install.sh
+go install github.com/scotro/air@latest
 ```
 
-Then restart your terminal or `source ~/.zshrc`.
+Or build from source:
+```bash
+git clone https://github.com/scotro/air
+cd air
+go build -o bin/air ./cmd/air/
+```
 
-## Initialize a Project
+## Usage
+
+### Initialize a project
 
 ```bash
 cd ~/my-project
-agent-init
+air init
 ```
 
-This creates `.claude/` with settings and workflow commands.
+Creates `.air/` directory. Does not touch `.claude/` or `CLAUDE.md`.
 
-## Create Work Packets
-
-Use Claude to help decompose your work:
-
-```
-> /workflow-setup
-```
-
-Or create packets manually:
+### Plan work packets
 
 ```bash
-packet-create auth
-packet-create api
-# Edit .claude/packets/*.md with objectives and boundaries
+air plan
 ```
 
-## Launch Agents
+Claude helps decompose your work into parallelizable packets stored in `.air/packets/`.
 
 ```bash
-agent-create auth
-agent-create api
-agent-session auth api
+air plan list         # View packets
+air plan show <name>  # View specific packet
 ```
 
-In each tmux window, start Claude and point it to the packet:
-
-```
-> Read .claude/packets/auth.md and implement it.
-```
-
-## Integrate
-
-After agents signal DONE:
+### Run agents
 
 ```bash
-# From main project directory (not worktree)
-git merge feature/auth
-git merge feature/api
-agent-remove auth
-agent-remove api
+air run <packet1> <packet2> ...
+air run all           # Run all packets
 ```
 
-## Commands
+Creates worktrees, starts tmux session, launches Claude agents automatically.
 
-```
-agent-init              Initialize project for workflow
-agent-create <name>     Create agent worktree
-agent-list              List agents with status
-agent-remove <name>     Clean up after merge
-agent-session <n>...    Launch agents in tmux
-agent-status            Quick status check
-packet-create <name>    Create work packet
-packet-list             List packets
-agent-help              Show all commands
+### Monitor and integrate
+
+```bash
+air status            # Check agent progress
+air integrate         # Guide through merging
+air clean             # Remove worktrees
 ```
 
-## Learn More
+## How it works
 
-- [WORKFLOW.md](WORKFLOW.md) - Full methodology
-- [AGENT-HELPERS.md](AGENT-HELPERS.md) - Shell command docs
+1. `air plan` launches Claude with orchestration context to create work packets
+2. `air run` creates isolated git worktrees and starts agents in tmux
+3. Each agent receives workflow context via `--append-system-prompt`
+4. Agents work on their packets, signal DONE when complete
+5. `air integrate` helps merge completed work back to main
+
+## Directory structure
+
+```
+.air/
+├── context.md      # Workflow instructions (injected to all agents)
+├── packets/        # Work packet definitions
+└── worktrees/      # Git worktrees (gitignored)
+```
 
 ## License
 
-MIT License. Use it however you want. No warranty.
+MIT
