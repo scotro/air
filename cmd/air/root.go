@@ -28,6 +28,13 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
+	// Disable alphabetical sorting to show commands in workflow order
+	cobra.EnableCommandSorting = false
+
+	// Hide the auto-generated completion command
+	rootCmd.CompletionOptions.HiddenDefaultCmd = true
+
+	// Add commands in workflow order
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(planCmd)
 	rootCmd.AddCommand(runCmd)
