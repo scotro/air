@@ -12,9 +12,13 @@ import (
 )
 
 var cleanCmd = &cobra.Command{
-	Use:   "clean",
+	Use:   "clean [names...]",
 	Short: "Remove worktrees and optionally delete branches",
-	RunE:  runClean,
+	Long: `Remove worktrees and optionally delete their branches.
+
+With no arguments, removes all worktrees.
+With arguments, removes only the specified worktrees.`,
+	RunE: runClean,
 }
 
 var cleanAll bool
@@ -26,6 +30,7 @@ func init() {
 func runClean(cmd *cobra.Command, args []string) error {
 	worktreesDir := filepath.Join(".air", "worktrees")
 
+	// Get all existing worktrees
 	entries, err := os.ReadDir(worktreesDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -35,16 +40,33 @@ func runClean(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to read worktrees: %w", err)
 	}
 
-	if len(entries) == 0 {
+	// Build set of existing worktrees
+	existing := make(map[string]bool)
+	for _, entry := range entries {
+		if entry.IsDir() {
+			existing[entry.Name()] = true
+		}
+	}
+
+	if len(existing) == 0 {
 		fmt.Println("No worktrees to clean.")
 		return nil
 	}
 
-	// Collect worktree names before removing
+	// Determine which worktrees to clean
 	var names []string
-	for _, entry := range entries {
-		if entry.IsDir() {
-			names = append(names, entry.Name())
+	if len(args) > 0 {
+		// Clean specific worktrees
+		for _, name := range args {
+			if !existing[name] {
+				return fmt.Errorf("worktree '%s' not found", name)
+			}
+			names = append(names, name)
+		}
+	} else {
+		// Clean all worktrees
+		for name := range existing {
+			names = append(names, name)
 		}
 	}
 
@@ -100,6 +122,6 @@ func runClean(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	fmt.Println("\nCleanup complete. Packets preserved in .air/packets/")
+	fmt.Println("\nCleanup complete.")
 	return nil
 }
