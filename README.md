@@ -5,14 +5,14 @@ Orchestrate multiple Claude Code agents working in parallel on decomposed tasks.
 ## Install
 
 ```bash
-go install github.com/scotro/air@latest
+go install github.com/scotro/air/cmd/air@latest
 ```
 
 Or build from source:
 ```bash
 git clone https://github.com/scotro/air
 cd air
-go build -o bin/air ./cmd/air/
+make install    # builds and copies to /usr/local/bin
 ```
 
 ## Usage
