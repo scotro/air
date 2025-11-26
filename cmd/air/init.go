@@ -93,8 +93,11 @@ const contextTemplate = `## AI Runner Workflow
 
 You are an agent in a concurrent workflow. Multiple agents work in parallel on isolated worktrees.
 
+### Your Worktree
+You are running in a git worktree - a complete copy of the repository on your own branch. All source files are available in your current working directory. Use RELATIVE paths (e.g., ` + "`" + `./cmd/` + "`" + `, ` + "`" + `./internal/` + "`" + `) - do NOT use absolute paths to the parent repository.
+
 ### Your Assignment
-Read your packet in ` + "`" + `.air/packets/<name>.md` + "`" + ` before starting.
+Read your packet in the provided .air/packets/ path before starting.
 
 ### Boundaries
 Only modify files within your packet's stated scope. If you need changes outside your boundaries, signal BLOCKED.
