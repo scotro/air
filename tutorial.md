@@ -14,8 +14,8 @@ A Go implementation of Redis that supports:
 
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed
 - [Go 1.21+](https://go.dev/doc/install)
-- tmux
-- Git
+- [tmux](https://github.com/tmux/tmux/wiki/Installing) on mac, `brew install tmux`
+- git
 
 ## 1. Create Your Project
 
