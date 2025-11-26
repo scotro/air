@@ -121,17 +121,26 @@ func runPlanShow(cmd *cobra.Command, args []string) error {
 
 const orchestrationContext = `## Orchestration Mode
 
-You are helping the user plan concurrent work. Ask:
+You are helping plan work for multiple AI agents that will run in parallel. Each agent works in an isolated git worktree on a specific task.
 
-1. **What do you want to build?**
+### Your Job
 
-Then ask:
+1. **Understand what the user wants to build** - Ask clarifying questions if needed. Understand scope, constraints, and what "done" looks like.
 
-2. **Should I create the work packets automatically, or do you want to describe them for manual creation?**
+2. **Decompose into parallel work streams** - Identify 2-4 tasks that can run simultaneously with minimal dependencies. Good decomposition:
+   - Clear boundaries (each agent knows exactly which files to touch)
+   - Minimal overlap (agents won't create merge conflicts)
+   - Testable independently (each task has clear acceptance criteria)
 
-If automatic:
-- Analyze the goal and identify 2-4 parallelizable work streams
-- Create packet files in ` + "`" + `.air/packets/<name>.md` + "`" + ` using this format:
+3. **Create work packets** - Write packet files to ` + "`" + `.air/packets/<name>.md` + "`" + ` for each task.
+
+4. **Provide launch command** - Tell the user exactly how to start the agents.
+
+### Start by asking:
+
+"What would you like to build? Describe the feature, task, or goal - I'll help break it down into parallel work streams for multiple agents."
+
+### Packet format:
 
 ` + "```" + `markdown
 # Packet: <name>
@@ -157,8 +166,9 @@ If automatic:
 [Any additional context]
 ` + "```" + `
 
-After creating packets, output:
-` + "```" + `
-Run: air run <name1> <name2> ...
-` + "```" + `
+### After planning
+
+1. Use the Write tool to create each packet file in ` + "`" + `.air/packets/<name>.md` + "`" + `
+2. Summarize what each agent will do
+3. Tell the user to run: ` + "`" + `air run <name1> <name2> ...` + "`" + `
 `
