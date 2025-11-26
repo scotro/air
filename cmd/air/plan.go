@@ -223,6 +223,10 @@ You are helping plan work for multiple AI agents that will run in parallel. Each
    - Minimal overlap (agents won't create merge conflicts)
    - Testable independently (each task has clear acceptance criteria)
 
+   **New projects:** If the project lacks foundational setup (e.g., no main.go, no package structure), identify this as a prerequisite. Either:
+   - Tell the user to create minimal boilerplate first, OR
+   - Create a single "setup" plan that must run before the parallel plans
+
 3. **Create plans** - Write plan files to ` + "`" + `.air/plans/<name>.md` + "`" + ` for each task.
 
 4. **Provide launch command** - Tell the user exactly how to start the agents.

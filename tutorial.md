@@ -23,7 +23,24 @@ A Go implementation of Redis that supports:
 mkdir mini-redis && cd mini-redis
 go mod init mini-redis
 git init
-git commit --allow-empty -m "Initial commit"
+```
+
+Before parallelizing work, establish your project foundation. Create a minimal `main.go`:
+
+```go
+// main.go
+package main
+
+func main() {
+	// TODO: start server
+}
+```
+
+Commit the foundation:
+
+```bash
+git add .
+git commit -m "Initial project structure"
 ```
 
 ## 2. Initialize AIR
