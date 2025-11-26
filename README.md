@@ -5,7 +5,7 @@ Orchestrate multiple Claude Code agents working in parallel on decomposed tasks.
 ## Install
 
 ```bash
-go install github.com/scotro/ai-runner/cmd/air@latest
+go install github.com/scotro/air/cmd/air@latest
 ```
 
 Requires `$GOPATH/bin` (usually `~/go/bin`) in your PATH.
