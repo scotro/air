@@ -90,6 +90,25 @@ func runClean(cmd *cobra.Command, args []string) error {
 	// Prune worktrees
 	exec.Command("git", "worktree", "prune").Run()
 
+	// Archive plans
+	archivedDir := filepath.Join(".air", "plans", "archive")
+	if err := os.MkdirAll(archivedDir, 0755); err != nil {
+		return fmt.Errorf("failed to create archive directory: %w", err)
+	}
+
+	for _, name := range names {
+		planFile := filepath.Join(".air", "plans", name+".md")
+		archivedFile := filepath.Join(archivedDir, name+".md")
+
+		if err := os.Rename(planFile, archivedFile); err != nil {
+			if !os.IsNotExist(err) {
+				fmt.Printf("Warning: failed to archive plan %s: %v\n", name, err)
+			}
+		} else {
+			fmt.Printf("Archived plan: %s\n", name)
+		}
+	}
+
 	// Delete branches if requested
 	if cleanAll {
 		fmt.Println("\nDeleting branches...")
