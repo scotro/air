@@ -13,7 +13,7 @@ A Go implementation of Redis that supports:
 ## Prerequisites
 
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed
-- Go 1.21+
+- [Go 1.21+](https://go.dev/doc/install)
 - tmux
 - Git
 
