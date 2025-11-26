@@ -26,6 +26,10 @@ Download the binary for your platform from [GitHub Releases](https://github.com/
 go install github.com/scotro/air/cmd/air@latest
 ```
 
+## Getting Started
+
+Follow the **[Tutorial](tutorial.md)** to build a Redis clone in ~1 hour using parallel agents. You'll learn the full workflow: `init` → `plan` → `run` → `integrate` → `clean`.
+
 ## Usage
 
 ### Initialize a project
