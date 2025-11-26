@@ -4,11 +4,27 @@ Orchestrate multiple Claude Code agents working in parallel on decomposed tasks.
 
 ## Install
 
+### Quick install (recommended)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/scotro/air/main/install.sh | sh
+```
+
+Installs to `~/.local/bin` by default. Add it to your PATH if needed:
+
+```bash
+export PATH="$PATH:$HOME/.local/bin"
+```
+
+### Manual download
+
+Download the binary for your platform from [GitHub Releases](https://github.com/scotro/air/releases).
+
+### From source (requires Go)
+
 ```bash
 go install github.com/scotro/air/cmd/air@latest
 ```
-
-Requires `$GOPATH/bin` (usually `~/go/bin`) in your PATH.
 
 ## Usage
 
