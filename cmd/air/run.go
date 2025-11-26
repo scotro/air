@@ -95,6 +95,12 @@ func runRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create worktrees directory: %w", err)
 	}
 
+	// Create channels directory for agent coordination
+	channelsDir := filepath.Join(projectRoot, ".air", "channels")
+	if err := os.MkdirAll(channelsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create channels directory: %w", err)
+	}
+
 	// Permission flag for claude
 	permFlag := ""
 	if !noAutoAccept {
@@ -140,8 +146,15 @@ func runRun(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to write assignment for %s: %w", name, err)
 		}
 
-		// Generate launcher script that reads from files
-		launcherScript := fmt.Sprintf("#!/bin/bash\nexec claude %s --append-system-prompt \"$(cat .air/.context)\" \"$(cat .air/.assignment)\"\n", permFlag)
+		// Generate launcher script that reads from files and sets env vars for agent coordination
+		wtAbsPath := filepath.Join(projectRoot, ".air", "worktrees", name)
+		launcherScript := fmt.Sprintf(`#!/bin/bash
+export AIR_AGENT_ID="%s"
+export AIR_WORKTREE="%s"
+export AIR_PROJECT_ROOT="%s"
+export AIR_CHANNELS_DIR="%s"
+exec claude %s --append-system-prompt "$(cat .air/.context)" "$(cat .air/.assignment)"
+`, name, wtAbsPath, projectRoot, channelsDir, permFlag)
 
 		scriptPath := filepath.Join(wtAirDir, "launch.sh")
 		if err := os.WriteFile(scriptPath, []byte(launcherScript), 0755); err != nil {

@@ -42,4 +42,7 @@ func init() {
 	rootCmd.AddCommand(integrateCmd)
 	rootCmd.AddCommand(cleanCmd)
 	rootCmd.AddCommand(versionCmd)
+
+	// Agent commands (used during execution, not by users)
+	rootCmd.AddCommand(agentCmd)
 }

@@ -261,9 +261,40 @@ You are helping plan work for multiple AI agents that will run in parallel. Each
 [Any additional context]
 ` + "```" + `
 
+### Concurrent Plans (with Dependencies)
+
+When one plan MUST wait for another to complete some work first, add a **Dependencies** section.
+
+**IMPORTANT: Prefer parallel (independent) plans whenever possible.** Only use dependencies when absolutely necessary - each integration point is a potential merge conflict.
+
+` + "```" + `markdown
+## Dependencies
+
+**Waits on:**
+- ` + "`" + `<channel-name>` + "`" + ` - Description of what must be ready first
+
+**Signals:**
+- ` + "`" + `<channel-name>` + "`" + ` - Description of what this plan provides to others
+
+**Sequence:**
+1. Run ` + "`" + `air agent wait <channel>` + "`" + ` before starting dependent work
+2. Run ` + "`" + `air agent cherry-pick <channel>` + "`" + ` to pull in changes
+3. Do implementation work
+4. Commit changes
+5. Run ` + "`" + `air agent signal <channel>` + "`" + ` to notify waiting agents
+6. Run ` + "`" + `air agent done` + "`" + ` when complete
+` + "```" + `
+
+**Design principles for concurrent plans:**
+- **Minimize integration points** - fewer signals = fewer conflicts
+- **Non-overlapping files** - agents consuming the same channel must work on different files
+- **Signal late** - only signal after committing stable, tested code
+- **Name channels clearly** - use descriptive names like ` + "`" + `core-ready` + "`" + `, ` + "`" + `auth-complete` + "`" + `
+
 ### After planning
 
 1. Use the Write tool to create each plan file in ` + "`" + `.air/plans/<name>.md` + "`" + `
 2. Summarize what each agent will do
-3. Tell the user to run: ` + "`" + `air run <name1> <name2> ...` + "`" + `
+3. If plans have dependencies, explain the dependency graph to the user
+4. Tell the user to run: ` + "`" + `air run <name1> <name2> ...` + "`" + `
 `
