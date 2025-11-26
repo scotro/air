@@ -12,34 +12,34 @@ import (
 
 var planCmd = &cobra.Command{
 	Use:   "plan",
-	Short: "Start orchestration session to create work packets",
-	Long:  `Launches Claude with orchestration context to help decompose work into packets.`,
+	Short: "Start orchestration session to create plans",
+	Long:  `Launches Claude with orchestration context to help decompose work into plans.`,
 	RunE:  runPlan,
 }
 
 var planListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List all work packets",
+	Short: "List all plans",
 	RunE:  runPlanList,
 }
 
 var planShowCmd = &cobra.Command{
 	Use:   "show <name>",
-	Short: "Show a specific work packet",
+	Short: "Show a specific plan",
 	Args:  cobra.ExactArgs(1),
 	RunE:  runPlanShow,
 }
 
 var planArchiveCmd = &cobra.Command{
 	Use:   "archive <name>",
-	Short: "Archive a work packet",
+	Short: "Archive a plan",
 	Args:  cobra.ExactArgs(1),
 	RunE:  runPlanArchive,
 }
 
 var planRestoreCmd = &cobra.Command{
 	Use:   "restore <name>",
-	Short: "Restore an archived packet",
+	Short: "Restore an archived plan",
 	Args:  cobra.ExactArgs(1),
 	RunE:  runPlanRestore,
 }
@@ -51,7 +51,7 @@ func init() {
 	planCmd.AddCommand(planShowCmd)
 	planCmd.AddCommand(planArchiveCmd)
 	planCmd.AddCommand(planRestoreCmd)
-	planListCmd.Flags().BoolVar(&listArchived, "archived", false, "Show archived packets")
+	planListCmd.Flags().BoolVar(&listArchived, "archived", false, "Show archived plans")
 }
 
 func runPlan(cmd *cobra.Command, args []string) error {
@@ -82,53 +82,53 @@ func runPlan(cmd *cobra.Command, args []string) error {
 }
 
 func runPlanList(cmd *cobra.Command, args []string) error {
-	var packetsDir string
+	var plansDir string
 	var label string
 
 	if listArchived {
-		packetsDir = filepath.Join(".air", "packets", "archive")
-		label = "Archived Packets:"
+		plansDir = filepath.Join(".air", "plans", "archive")
+		label = "Archived Plans:"
 	} else {
-		packetsDir = filepath.Join(".air", "packets")
-		label = "Packets:"
+		plansDir = filepath.Join(".air", "plans")
+		label = "Plans:"
 	}
 
-	entries, err := os.ReadDir(packetsDir)
+	entries, err := os.ReadDir(plansDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			if listArchived {
-				fmt.Println("No archived packets.")
+				fmt.Println("No archived plans.")
 			} else {
-				fmt.Println("No packets yet. Run 'air plan' to create some.")
+				fmt.Println("No plans yet. Run 'air plan' to create some.")
 			}
 			return nil
 		}
-		return fmt.Errorf("failed to read packets: %w", err)
+		return fmt.Errorf("failed to read plans: %w", err)
 	}
 
 	// Filter to only .md files (exclude archive directory)
-	var packets []os.DirEntry
+	var plans []os.DirEntry
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
-			packets = append(packets, entry)
+			plans = append(plans, entry)
 		}
 	}
 
-	if len(packets) == 0 {
+	if len(plans) == 0 {
 		if listArchived {
-			fmt.Println("No archived packets.")
+			fmt.Println("No archived plans.")
 		} else {
-			fmt.Println("No packets yet. Run 'air plan' to create some.")
+			fmt.Println("No plans yet. Run 'air plan' to create some.")
 		}
 		return nil
 	}
 
 	fmt.Println(label)
-	for _, entry := range packets {
+	for _, entry := range plans {
 		name := strings.TrimSuffix(entry.Name(), ".md")
 
 		// Read first line for objective
-		content, _ := os.ReadFile(filepath.Join(packetsDir, entry.Name()))
+		content, _ := os.ReadFile(filepath.Join(plansDir, entry.Name()))
 		lines := strings.Split(string(content), "\n")
 		objective := ""
 		for _, line := range lines {
@@ -147,14 +147,14 @@ func runPlanList(cmd *cobra.Command, args []string) error {
 
 func runPlanShow(cmd *cobra.Command, args []string) error {
 	name := args[0]
-	packetPath := filepath.Join(".air", "packets", name+".md")
+	planPath := filepath.Join(".air", "plans", name+".md")
 
-	content, err := os.ReadFile(packetPath)
+	content, err := os.ReadFile(planPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("packet '%s' not found", name)
+			return fmt.Errorf("plan '%s' not found", name)
 		}
-		return fmt.Errorf("failed to read packet: %w", err)
+		return fmt.Errorf("failed to read plan: %w", err)
 	}
 
 	fmt.Print(string(content))
@@ -163,13 +163,13 @@ func runPlanShow(cmd *cobra.Command, args []string) error {
 
 func runPlanArchive(cmd *cobra.Command, args []string) error {
 	name := args[0]
-	srcPath := filepath.Join(".air", "packets", name+".md")
-	archiveDir := filepath.Join(".air", "packets", "archive")
+	srcPath := filepath.Join(".air", "plans", name+".md")
+	archiveDir := filepath.Join(".air", "plans", "archive")
 	dstPath := filepath.Join(archiveDir, name+".md")
 
 	// Check source exists
 	if _, err := os.Stat(srcPath); os.IsNotExist(err) {
-		return fmt.Errorf("packet '%s' not found", name)
+		return fmt.Errorf("plan '%s' not found", name)
 	}
 
 	// Create archive directory
@@ -179,7 +179,7 @@ func runPlanArchive(cmd *cobra.Command, args []string) error {
 
 	// Move file
 	if err := os.Rename(srcPath, dstPath); err != nil {
-		return fmt.Errorf("failed to archive packet: %w", err)
+		return fmt.Errorf("failed to archive plan: %w", err)
 	}
 
 	fmt.Printf("Archived: %s\n", name)
@@ -188,22 +188,22 @@ func runPlanArchive(cmd *cobra.Command, args []string) error {
 
 func runPlanRestore(cmd *cobra.Command, args []string) error {
 	name := args[0]
-	srcPath := filepath.Join(".air", "packets", "archive", name+".md")
-	dstPath := filepath.Join(".air", "packets", name+".md")
+	srcPath := filepath.Join(".air", "plans", "archive", name+".md")
+	dstPath := filepath.Join(".air", "plans", name+".md")
 
 	// Check source exists
 	if _, err := os.Stat(srcPath); os.IsNotExist(err) {
-		return fmt.Errorf("archived packet '%s' not found", name)
+		return fmt.Errorf("archived plan '%s' not found", name)
 	}
 
 	// Check destination doesn't exist
 	if _, err := os.Stat(dstPath); err == nil {
-		return fmt.Errorf("packet '%s' already exists (not archived)", name)
+		return fmt.Errorf("plan '%s' already exists (not archived)", name)
 	}
 
 	// Move file
 	if err := os.Rename(srcPath, dstPath); err != nil {
-		return fmt.Errorf("failed to restore packet: %w", err)
+		return fmt.Errorf("failed to restore plan: %w", err)
 	}
 
 	fmt.Printf("Restored: %s\n", name)
@@ -223,7 +223,7 @@ You are helping plan work for multiple AI agents that will run in parallel. Each
    - Minimal overlap (agents won't create merge conflicts)
    - Testable independently (each task has clear acceptance criteria)
 
-3. **Create work packets** - Write packet files to ` + "`" + `.air/packets/<name>.md` + "`" + ` for each task.
+3. **Create plans** - Write plan files to ` + "`" + `.air/plans/<name>.md` + "`" + ` for each task.
 
 4. **Provide launch command** - Tell the user exactly how to start the agents.
 
@@ -231,10 +231,10 @@ You are helping plan work for multiple AI agents that will run in parallel. Each
 
 "What would you like to build? Describe the feature, task, or goal - I'll help break it down into parallel work streams for multiple agents."
 
-### Packet format:
+### Plan format:
 
 ` + "```" + `markdown
-# Packet: <name>
+# Plan: <name>
 
 **Objective:** [One sentence describing what "done" looks like]
 
@@ -259,7 +259,7 @@ You are helping plan work for multiple AI agents that will run in parallel. Each
 
 ### After planning
 
-1. Use the Write tool to create each packet file in ` + "`" + `.air/packets/<name>.md` + "`" + `
+1. Use the Write tool to create each plan file in ` + "`" + `.air/plans/<name>.md` + "`" + `
 2. Summarize what each agent will do
 3. Tell the user to run: ` + "`" + `air run <name1> <name2> ...` + "`" + `
 `

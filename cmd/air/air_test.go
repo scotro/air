@@ -89,10 +89,10 @@ func TestInit_CreatesAirDirectory(t *testing.T) {
 		t.Error(".air/ directory was not created")
 	}
 
-	// Check .air/packets/ exists
-	packetsDir := filepath.Join(airDir, "packets")
-	if _, err := os.Stat(packetsDir); os.IsNotExist(err) {
-		t.Error(".air/packets/ directory was not created")
+	// Check .air/plans/ exists
+	plansDir := filepath.Join(airDir, "plans")
+	if _, err := os.Stat(plansDir); os.IsNotExist(err) {
+		t.Error(".air/plans/ directory was not created")
 	}
 
 	// Check .air/context.md exists
@@ -183,16 +183,16 @@ func TestInit_FailsOutsideGitRepo(t *testing.T) {
 // air plan tests
 // ============================================================================
 
-func TestPlanList_ShowsPackets(t *testing.T) {
+func TestPlanList_ShowsPlans(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
 	runAir(t, tmpDir, "init")
 
-	// Create test packets
-	packetsDir := filepath.Join(tmpDir, ".air", "packets")
-	os.WriteFile(filepath.Join(packetsDir, "auth.md"), []byte("# Auth packet\n**Objective:** Test"), 0644)
-	os.WriteFile(filepath.Join(packetsDir, "api.md"), []byte("# API packet\n**Objective:** Test"), 0644)
+	// Create test plans
+	plansDir := filepath.Join(tmpDir, ".air", "plans")
+	os.WriteFile(filepath.Join(plansDir, "auth.md"), []byte("# Auth plan\n**Objective:** Test"), 0644)
+	os.WriteFile(filepath.Join(plansDir, "api.md"), []byte("# API plan\n**Objective:** Test"), 0644)
 
 	out, err := runAir(t, tmpDir, "plan", "list")
 	if err != nil {
@@ -200,10 +200,10 @@ func TestPlanList_ShowsPackets(t *testing.T) {
 	}
 
 	if !strings.Contains(out, "auth") {
-		t.Error("plan list output missing 'auth' packet")
+		t.Error("plan list output missing 'auth' plan")
 	}
 	if !strings.Contains(out, "api") {
-		t.Error("plan list output missing 'api' packet")
+		t.Error("plan list output missing 'api' plan")
 	}
 }
 
@@ -218,35 +218,35 @@ func TestPlanList_EmptyMessage(t *testing.T) {
 		t.Fatalf("air plan list failed: %v\n%s", err, out)
 	}
 
-	if !strings.Contains(out, "No packets") {
-		t.Error("expected 'No packets' message for empty packets dir")
+	if !strings.Contains(out, "No plans") {
+		t.Error("expected 'No plans' message for empty plans dir")
 	}
 }
 
-func TestPlanShow_DisplaysPacket(t *testing.T) {
+func TestPlanShow_DisplaysPlan(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
 	runAir(t, tmpDir, "init")
 
-	// Create test packet
-	content := "# Test Packet\n\n**Objective:** Do the thing\n\n## Details\nMore info here."
-	os.WriteFile(filepath.Join(tmpDir, ".air", "packets", "test.md"), []byte(content), 0644)
+	// Create test plan
+	content := "# Test Plan\n\n**Objective:** Do the thing\n\n## Details\nMore info here."
+	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "test.md"), []byte(content), 0644)
 
 	out, err := runAir(t, tmpDir, "plan", "show", "test")
 	if err != nil {
 		t.Fatalf("air plan show failed: %v\n%s", err, out)
 	}
 
-	if !strings.Contains(out, "Test Packet") {
-		t.Error("plan show output missing packet content")
+	if !strings.Contains(out, "Test Plan") {
+		t.Error("plan show output missing plan content")
 	}
 	if !strings.Contains(out, "Do the thing") {
 		t.Error("plan show output missing objective")
 	}
 }
 
-func TestPlanShow_FailsForMissingPacket(t *testing.T) {
+func TestPlanShow_FailsForMissingPlan(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
@@ -254,7 +254,7 @@ func TestPlanShow_FailsForMissingPacket(t *testing.T) {
 
 	_, err := runAir(t, tmpDir, "plan", "show", "nonexistent")
 	if err == nil {
-		t.Error("expected error for nonexistent packet")
+		t.Error("expected error for nonexistent plan")
 	}
 }
 
@@ -264,10 +264,10 @@ func TestPlanArchiveAndRestore(t *testing.T) {
 
 	runAir(t, tmpDir, "init")
 
-	// Create test packet
-	packetsDir := filepath.Join(tmpDir, ".air", "packets")
-	packetPath := filepath.Join(packetsDir, "test.md")
-	os.WriteFile(packetPath, []byte("# Test"), 0644)
+	// Create test plan
+	plansDir := filepath.Join(tmpDir, ".air", "plans")
+	planPath := filepath.Join(plansDir, "test.md")
+	os.WriteFile(planPath, []byte("# Test"), 0644)
 
 	// Archive it
 	out, err := runAir(t, tmpDir, "plan", "archive", "test")
@@ -276,14 +276,14 @@ func TestPlanArchiveAndRestore(t *testing.T) {
 	}
 
 	// Original should be gone
-	if _, err := os.Stat(packetPath); !os.IsNotExist(err) {
-		t.Error("packet should be removed after archive")
+	if _, err := os.Stat(planPath); !os.IsNotExist(err) {
+		t.Error("plan should be removed after archive")
 	}
 
 	// Should be in archive
-	archivedPath := filepath.Join(packetsDir, "archive", "test.md")
+	archivedPath := filepath.Join(plansDir, "archive", "test.md")
 	if _, err := os.Stat(archivedPath); os.IsNotExist(err) {
-		t.Error("packet should exist in archive")
+		t.Error("plan should exist in archive")
 	}
 
 	// Restore it
@@ -293,13 +293,13 @@ func TestPlanArchiveAndRestore(t *testing.T) {
 	}
 
 	// Should be back
-	if _, err := os.Stat(packetPath); os.IsNotExist(err) {
-		t.Error("packet should exist after restore")
+	if _, err := os.Stat(planPath); os.IsNotExist(err) {
+		t.Error("plan should exist after restore")
 	}
 
 	// Should be gone from archive
 	if _, err := os.Stat(archivedPath); !os.IsNotExist(err) {
-		t.Error("packet should be removed from archive after restore")
+		t.Error("plan should be removed from archive after restore")
 	}
 }
 
@@ -317,40 +317,40 @@ func TestRun_FailsIfNotInitialized(t *testing.T) {
 	}
 }
 
-func TestRun_ShowsPacketsWithNoArgs(t *testing.T) {
+func TestRun_ShowsPlansWithNoArgs(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
 	runAir(t, tmpDir, "init")
 
-	// Create test packet
-	os.WriteFile(filepath.Join(tmpDir, ".air", "packets", "test.md"), []byte("# Test"), 0644)
+	// Create test plan
+	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "test.md"), []byte("# Test"), 0644)
 
 	out, err := runAir(t, tmpDir, "run")
 	if err != nil {
 		t.Fatalf("air run failed: %v\n%s", err, out)
 	}
 
-	if !strings.Contains(out, "Available packets") {
-		t.Error("expected available packets list")
+	if !strings.Contains(out, "Available plans") {
+		t.Error("expected available plans list")
 	}
 	if !strings.Contains(out, "test") {
-		t.Error("expected 'test' packet in list")
+		t.Error("expected 'test' plan in list")
 	}
 }
 
-func TestRun_FailsForMissingPacket(t *testing.T) {
+func TestRun_FailsForMissingPlan(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
 	runAir(t, tmpDir, "init")
 
-	// Create one packet so we get past the "no packets" check
-	os.WriteFile(filepath.Join(tmpDir, ".air", "packets", "exists.md"), []byte("# Exists"), 0644)
+	// Create one plan so we get past the "no plans" check
+	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "exists.md"), []byte("# Exists"), 0644)
 
 	_, err := runAir(t, tmpDir, "run", "nonexistent")
 	if err == nil {
-		t.Error("expected error for nonexistent packet")
+		t.Error("expected error for nonexistent plan")
 	}
 }
 
@@ -360,8 +360,8 @@ func TestRun_CreatesWorktreeDirectory(t *testing.T) {
 
 	runAir(t, tmpDir, "init")
 
-	// Create test packet
-	os.WriteFile(filepath.Join(tmpDir, ".air", "packets", "test.md"), []byte("# Test\n**Objective:** Test"), 0644)
+	// Create test plan
+	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "test.md"), []byte("# Test\n**Objective:** Test"), 0644)
 
 	// Note: This will fail to actually run claude/tmux, but should create the worktree
 	runAir(t, tmpDir, "run", "test")
@@ -379,8 +379,8 @@ func TestRun_GeneratesLaunchScript(t *testing.T) {
 
 	runAir(t, tmpDir, "init")
 
-	// Create test packet
-	os.WriteFile(filepath.Join(tmpDir, ".air", "packets", "test.md"), []byte("# Test\n**Objective:** Test"), 0644)
+	// Create test plan
+	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "test.md"), []byte("# Test\n**Objective:** Test"), 0644)
 
 	runAir(t, tmpDir, "run", "test")
 
@@ -406,19 +406,19 @@ func TestRun_GeneratesLaunchScript(t *testing.T) {
 	}
 }
 
-func TestRun_LaunchScriptContainsPacketContent(t *testing.T) {
+func TestRun_LaunchScriptContainsPlanContent(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
 	runAir(t, tmpDir, "init")
 
-	// Create test packet with unique content
-	packetContent := "**Objective:** Implement the FOOBAR_UNIQUE_STRING feature"
-	os.WriteFile(filepath.Join(tmpDir, ".air", "packets", "test.md"), []byte(packetContent), 0644)
+	// Create test plan with unique content
+	planContent := "**Objective:** Implement the FOOBAR_UNIQUE_STRING feature"
+	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "test.md"), []byte(planContent), 0644)
 
 	runAir(t, tmpDir, "run", "test")
 
-	// Check assignment file contains packet content
+	// Check assignment file contains plan content
 	assignmentPath := filepath.Join(tmpDir, ".air", "worktrees", "test", ".air", ".assignment")
 	content, err := os.ReadFile(assignmentPath)
 	if err != nil {
@@ -426,7 +426,7 @@ func TestRun_LaunchScriptContainsPacketContent(t *testing.T) {
 	}
 
 	if !strings.Contains(string(content), "FOOBAR_UNIQUE_STRING") {
-		t.Error(".assignment missing packet content")
+		t.Error(".assignment missing plan content")
 	}
 }
 
@@ -440,9 +440,9 @@ func TestClean_RemovesSpecificWorktree(t *testing.T) {
 
 	runAir(t, tmpDir, "init")
 
-	// Create two packets and run them
-	os.WriteFile(filepath.Join(tmpDir, ".air", "packets", "keep.md"), []byte("# Keep"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, ".air", "packets", "remove.md"), []byte("# Remove"), 0644)
+	// Create two plans and run them
+	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "keep.md"), []byte("# Keep"), 0644)
+	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "remove.md"), []byte("# Remove"), 0644)
 
 	runAir(t, tmpDir, "run", "keep", "remove")
 
@@ -468,8 +468,8 @@ func TestClean_FailsForNonexistentWorktree(t *testing.T) {
 
 	runAir(t, tmpDir, "init")
 
-	// Create and run a packet to have at least one worktree
-	os.WriteFile(filepath.Join(tmpDir, ".air", "packets", "test.md"), []byte("# Test"), 0644)
+	// Create and run a plan to have at least one worktree
+	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "test.md"), []byte("# Test"), 0644)
 	runAir(t, tmpDir, "run", "test")
 
 	_, err := runAir(t, tmpDir, "clean", "nonexistent")
@@ -514,8 +514,8 @@ func TestFullWorkflow(t *testing.T) {
 		t.Fatalf("init failed: %v\n%s", err, out)
 	}
 
-	// 2. Create a packet manually (simulating what air plan would do)
-	packet := `# Packet: feature
+	// 2. Create a plan manually (simulating what air plan would do)
+	plan := `# Plan: feature
 
 **Objective:** Add a new feature
 
@@ -532,9 +532,9 @@ func TestFullWorkflow(t *testing.T) {
 - [ ] Feature works
 - [ ] Tests pass
 `
-	os.WriteFile(filepath.Join(tmpDir, ".air", "packets", "feature.md"), []byte(packet), 0644)
+	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "feature.md"), []byte(plan), 0644)
 
-	// 3. List packets
+	// 3. List plans
 	out, err = runAir(t, tmpDir, "plan", "list")
 	if err != nil {
 		t.Fatalf("plan list failed: %v\n%s", err, out)
@@ -543,7 +543,7 @@ func TestFullWorkflow(t *testing.T) {
 		t.Error("plan list missing 'feature'")
 	}
 
-	// 4. Show packet
+	// 4. Show plan
 	out, err = runAir(t, tmpDir, "plan", "show", "feature")
 	if err != nil {
 		t.Fatalf("plan show failed: %v\n%s", err, out)

@@ -1,4 +1,4 @@
-# Work Packet: [SHORT-NAME]
+# Agent Plan: [SHORT-NAME]
 
 **Objective:** [One sentence describing what "done" looks like]
 
@@ -33,11 +33,11 @@
 
 **Out of Scope:**
 - [What this agent should NOT touch]
-- [Adjacent work that belongs to another packet]
+- [Adjacent work that belongs to another plan]
 
 ## Interface Contracts
 
-[If this packet has soft dependencies with others, define the interface here]
+[If this plan has soft dependencies with others, define the interface here]
 
 ```go
 // Example: API contract this agent should implement/consume

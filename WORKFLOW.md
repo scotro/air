@@ -18,13 +18,13 @@ Work flows through three types of rounds, cycling as needed:
 
 ### Setup Round (Serial, Human-Heavy)
 
-**Duration:** 15-45 minutes depending on complexity  
-**Goal:** Decompose work into parallelizable packets
+**Duration:** 15-45 minutes depending on complexity
+**Goal:** Decompose work into parallelizable plans
 
 1. Define the overall objective for this work session
 2. Identify natural decomposition points (by feature, layer, or domain)
-3. Map dependencies between packets (independent, sequential, soft)
-4. Write work packets using `templates/work-packet.md`
+3. Map dependencies between plans (independent, sequential, soft)
+4. Write plans using `templates/agent-plan.md`
 5. Prepare isolated environments (git worktrees)
 6. Dispatch agents with initial context
 
@@ -52,15 +52,15 @@ For each active agent:
 
 ### Integration Round (Serial, Human-Heavy)
 
-**Duration:** 30-60 minutes depending on scope  
+**Duration:** 30-60 minutes depending on scope
 **Goal:** Collect, verify, and merge completed work
 
-1. Review completed work packets against acceptance criteria
+1. Review completed plans against acceptance criteria
 2. Run integration tests across merged work
 3. Identify gaps, regressions, or coordination issues
 4. Document decisions made during execution
 5. Update project documentation if needed
-6. Define new work packets for next cycle
+6. Define new plans for next cycle
 
 **Exit criteria:** Main branch updated, next cycle planned or session complete.
 
@@ -68,22 +68,22 @@ For each active agent:
 
 ## Dependency Management
 
-Before spawning agents, classify each work packet:
+Before spawning agents, classify each plan:
 
 ### Independent
-No dependencies on other packets. Fully parallelizable.
+No dependencies on other plans. Fully parallelizable.
 ```
 [Auth Service] ←──────→ [Email Templates]
      ↓                        ↓
   (no connection, run simultaneously)
 ```
 
-### Sequential  
+### Sequential
 Output of A required before B can start.
 ```
 [Database Schema] → [Repository Layer] → [API Endpoints]
 ```
-Strategy: Complete earlier packets before spawning dependent agents.
+Strategy: Complete earlier plans before spawning dependent agents.
 
 ### Soft Dependencies
 Can run in parallel with assumptions, reconcile later.
@@ -215,7 +215,7 @@ Check every 10-15 minutes, pair-review before merge.
 
 **Hovering:** Checking agents every 5 minutes breaks your focus and doesn't help them.
 
-**Under-specifying:** Vague work packets cause drift. Invest time in setup.
+**Under-specifying:** Vague plans cause drift. Invest time in setup.
 
 **Skipping integration:** Merging without verification compounds errors.
 

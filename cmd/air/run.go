@@ -11,12 +11,12 @@ import (
 )
 
 var runCmd = &cobra.Command{
-	Use:   "run [packets...]",
+	Use:   "run [plans...]",
 	Short: "Create worktrees and launch agents",
-	Long: `Creates git worktrees for each packet and launches Claude agents in a tmux session.
+	Long: `Creates git worktrees for each plan and launches Claude agents in a tmux session.
 
-Use 'air run all' to run all packets, or specify packet names.
-With no arguments, shows available packets.`,
+Use 'air run all' to run all plans, or specify plan names.
+With no arguments, shows available plans.`,
 	RunE: runRun,
 }
 
@@ -32,42 +32,42 @@ func runRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not initialized (run 'air init' first)")
 	}
 
-	packetsDir := filepath.Join(".air", "packets")
+	plansDir := filepath.Join(".air", "plans")
 
-	// Get available packets
-	available, err := getAvailablePackets(packetsDir)
+	// Get available plans
+	available, err := getAvailablePlans(plansDir)
 	if err != nil {
 		return err
 	}
 
 	if len(available) == 0 {
-		fmt.Println("No packets found. Run 'air plan' to create some.")
+		fmt.Println("No plans found. Run 'air plan' to create some.")
 		return nil
 	}
 
-	// No args: show available packets
+	// No args: show available plans
 	if len(args) == 0 {
-		fmt.Println("Available packets:")
+		fmt.Println("Available plans:")
 		for _, p := range available {
 			fmt.Printf("  %s\n", p)
 		}
-		fmt.Println("\nUsage: air run <packet1> [packet2] ...")
+		fmt.Println("\nUsage: air run <plan1> [plan2] ...")
 		fmt.Println("       air run all")
 		return nil
 	}
 
 	// Handle 'all'
-	var packets []string
+	var plans []string
 	if len(args) == 1 && args[0] == "all" {
-		packets = available
+		plans = available
 	} else {
-		// Validate packet names
+		// Validate plan names
 		for _, name := range args {
 			if !contains(available, name) {
-				return fmt.Errorf("packet '%s' not found", name)
+				return fmt.Errorf("plan '%s' not found", name)
 			}
 		}
-		packets = args
+		plans = args
 	}
 
 	// Get the absolute path of the project root
@@ -94,8 +94,8 @@ func runRun(cmd *cobra.Command, args []string) error {
 		permFlag = "--permission-mode acceptEdits"
 	}
 
-	// Create worktrees for each packet
-	for _, name := range packets {
+	// Create worktrees for each plan
+	for _, name := range plans {
 		wtPath := filepath.Join(worktreesDir, name)
 		branch := "air/" + name
 
@@ -113,14 +113,14 @@ func runRun(cmd *cobra.Command, args []string) error {
 			fmt.Printf("Created worktree: %s (branch: %s)\n", wtPath, branch)
 		}
 
-		// Read packet content from main repo
-		packetContent, err := os.ReadFile(filepath.Join(".air", "packets", name+".md"))
+		// Read plan content from main repo
+		planContent, err := os.ReadFile(filepath.Join(".air", "plans", name+".md"))
 		if err != nil {
-			return fmt.Errorf("failed to read packet %s: %w", name, err)
+			return fmt.Errorf("failed to read plan %s: %w", name, err)
 		}
 
 		// Build the assignment prompt
-		assignment := fmt.Sprintf("Your assignment:\n\n%s\n\nImplement this.", string(packetContent))
+		assignment := fmt.Sprintf("Your assignment:\n\n%s\n\nImplement this.", string(planContent))
 
 		// Write content files to worktree (avoids shell escaping issues)
 		wtAirDir := filepath.Join(wtPath, ".air")
@@ -148,21 +148,21 @@ func runRun(cmd *cobra.Command, args []string) error {
 	// Kill existing session if present
 	exec.Command("tmux", "kill-session", "-t", sessionName).Run()
 
-	// Create new session with first packet
-	firstPacket := packets[0]
-	firstWtPath := filepath.Join(projectRoot, ".air", "worktrees", firstPacket)
+	// Create new session with first plan
+	firstPlan := plans[0]
+	firstWtPath := filepath.Join(projectRoot, ".air", "worktrees", firstPlan)
 
 	// Create session
-	tmuxNew := exec.Command("tmux", "new-session", "-d", "-s", sessionName, "-n", firstPacket, "-c", firstWtPath)
+	tmuxNew := exec.Command("tmux", "new-session", "-d", "-s", sessionName, "-n", firstPlan, "-c", firstWtPath)
 	if err := tmuxNew.Run(); err != nil {
 		return fmt.Errorf("failed to create tmux session: %w", err)
 	}
 
-	// Run launcher script for first packet
-	exec.Command("tmux", "send-keys", "-t", sessionName+":"+firstPacket, ".air/launch.sh", "Enter").Run()
+	// Run launcher script for first plan
+	exec.Command("tmux", "send-keys", "-t", sessionName+":"+firstPlan, ".air/launch.sh", "Enter").Run()
 
-	// Create windows for remaining packets
-	for _, name := range packets[1:] {
+	// Create windows for remaining plans
+	for _, name := range plans[1:] {
 		wtPath := filepath.Join(projectRoot, ".air", "worktrees", name)
 
 		// Create window
@@ -176,9 +176,9 @@ func runRun(cmd *cobra.Command, args []string) error {
 	exec.Command("tmux", "new-window", "-t", sessionName, "-n", "dash", "-c", projectRoot).Run()
 
 	// Select first agent window
-	exec.Command("tmux", "select-window", "-t", sessionName+":"+firstPacket).Run()
+	exec.Command("tmux", "select-window", "-t", sessionName+":"+firstPlan).Run()
 
-	fmt.Printf("\nLaunched %d agents in tmux session '%s'\n", len(packets), sessionName)
+	fmt.Printf("\nLaunched %d agents in tmux session '%s'\n", len(plans), sessionName)
 	fmt.Println("Attach with: tmux attach -t", sessionName)
 
 	// Attach to session
@@ -189,23 +189,23 @@ func runRun(cmd *cobra.Command, args []string) error {
 	return attachCmd.Run()
 }
 
-func getAvailablePackets(packetsDir string) ([]string, error) {
-	entries, err := os.ReadDir(packetsDir)
+func getAvailablePlans(plansDir string) ([]string, error) {
+	entries, err := os.ReadDir(plansDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("failed to read packets: %w", err)
+		return nil, fmt.Errorf("failed to read plans: %w", err)
 	}
 
-	var packets []string
+	var plans []string
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
 			name := strings.TrimSuffix(entry.Name(), ".md")
-			packets = append(packets, name)
+			plans = append(plans, name)
 		}
 	}
-	return packets, nil
+	return plans, nil
 }
 
 func contains(slice []string, item string) bool {
