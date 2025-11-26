@@ -20,6 +20,7 @@ var statusCmd = &cobra.Command{
 
 func runStatus(cmd *cobra.Command, args []string) error {
 	worktreesDir := filepath.Join(".air", "worktrees")
+	channelsDir := filepath.Join(".air", "channels")
 
 	entries, err := os.ReadDir(worktreesDir)
 	if err != nil {
@@ -35,8 +36,33 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	fmt.Println("Agent Status")
-	fmt.Println("============")
+	// Collect done agents (check both done/<name>.json and <name>.json patterns)
+	doneAgents := make(map[string]bool)
+	doneDir := filepath.Join(channelsDir, "done")
+	if doneEntries, err := os.ReadDir(doneDir); err == nil {
+		for _, de := range doneEntries {
+			if strings.HasSuffix(de.Name(), ".json") {
+				doneAgents[strings.TrimSuffix(de.Name(), ".json")] = true
+			}
+		}
+	}
+	// Also check for done signals at root level (fallback for older format)
+	if channelEntries, err := os.ReadDir(channelsDir); err == nil {
+		for _, ce := range channelEntries {
+			if ce.IsDir() {
+				continue
+			}
+			name := strings.TrimSuffix(ce.Name(), ".json")
+			// Check if this matches a worktree name (likely a done signal)
+			for _, entry := range entries {
+				if entry.Name() == name {
+					doneAgents[name] = true
+				}
+			}
+		}
+	}
+
+	fmt.Println("Agents")
 	fmt.Println()
 
 	for _, entry := range entries {
@@ -47,21 +73,16 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		name := entry.Name()
 		wtPath := filepath.Join(worktreesDir, name)
 
-		// Get branch name
-		branchCmd := exec.Command("git", "-C", wtPath, "rev-parse", "--abbrev-ref", "HEAD")
-		branchOut, _ := branchCmd.Output()
-		branch := strings.TrimSpace(string(branchOut))
-
 		// Get last commit
-		logCmd := exec.Command("git", "-C", wtPath, "log", "-1", "--format=%ar: %s")
+		logCmd := exec.Command("git", "-C", wtPath, "log", "-1", "--format=%s (%ar)")
 		logOut, _ := logCmd.Output()
 		lastCommit := strings.TrimSpace(string(logOut))
 
 		// Check if claude is running in this worktree
-		status := "idle"
+		isRunning := false
 		pgrepCmd := exec.Command("pgrep", "-f", "claude.*"+wtPath)
 		if err := pgrepCmd.Run(); err == nil {
-			status = "running"
+			isRunning = true
 		}
 
 		// Get uncommitted changes count
@@ -69,82 +90,77 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		var diffOut bytes.Buffer
 		diffCmd.Stdout = &diffOut
 		diffCmd.Run()
-		changes := len(strings.Split(strings.TrimSpace(diffOut.String()), "\n"))
-		if diffOut.Len() == 0 {
-			changes = 0
+		changes := 0
+		if diffOut.Len() > 0 {
+			changes = len(strings.Split(strings.TrimSpace(diffOut.String()), "\n"))
 		}
 
-		// Print status
-		statusIcon := "⚪"
-		if status == "running" {
-			statusIcon = "🟢"
+		// Determine status
+		isDone := doneAgents[name]
+
+		var statusIcon, statusText string
+		if isDone {
+			statusIcon = "✓"
+			statusText = "done"
+		} else if isRunning {
+			statusIcon = "●"
+			statusText = "running"
+		} else {
+			statusIcon = "○"
+			statusText = "idle"
 		}
 
-		fmt.Printf("%s %s\n", statusIcon, name)
-		fmt.Printf("   Branch: %s\n", branch)
-		fmt.Printf("   Last commit: %s\n", lastCommit)
+		// Build info line
+		info := lastCommit
 		if changes > 0 {
-			fmt.Printf("   Uncommitted: %d files\n", changes)
+			info += fmt.Sprintf(", %d uncommitted", changes)
 		}
 
-		// Check if this agent has signaled done
-		doneChannelPath := filepath.Join(".air", "channels", "done", name+".json")
-		if _, err := os.Stat(doneChannelPath); err == nil {
-			fmt.Printf("   ✓ Completed\n")
-		}
-		fmt.Println()
+		fmt.Printf("  %s %-16s %s\n", statusIcon, name, statusText)
+		fmt.Printf("    %s\n", info)
 	}
 
-	// Show channel status
-	if err := showChannelStatus(); err != nil {
-		// Non-fatal - just skip channel status if channels dir doesn't exist
+	// Show coordination channels (exclude done markers)
+	if err := showChannelStatus(doneAgents); err != nil {
 		return nil
 	}
 
 	return nil
 }
 
-func showChannelStatus() error {
+func showChannelStatus(doneAgents map[string]bool) error {
 	channelsDir := filepath.Join(".air", "channels")
 
 	entries, err := os.ReadDir(channelsDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil // No channels yet, that's fine
+			return nil
 		}
 		return err
 	}
 
-	// Collect channels (excluding done/ subdirectory)
+	// Collect coordination channels (exclude done markers and agent-named files)
 	var channels []string
-	var doneAgents []string
-
 	for _, entry := range entries {
 		if entry.IsDir() {
-			if entry.Name() == "done" {
-				// Read done subdirectory
-				doneDir := filepath.Join(channelsDir, "done")
-				doneEntries, _ := os.ReadDir(doneDir)
-				for _, de := range doneEntries {
-					if strings.HasSuffix(de.Name(), ".json") {
-						agentName := strings.TrimSuffix(de.Name(), ".json")
-						doneAgents = append(doneAgents, agentName)
-					}
-				}
-			}
 			continue
 		}
 		if strings.HasSuffix(entry.Name(), ".json") {
-			channels = append(channels, strings.TrimSuffix(entry.Name(), ".json"))
+			name := strings.TrimSuffix(entry.Name(), ".json")
+			// Skip if this is a done marker (matches an agent name)
+			if doneAgents[name] {
+				continue
+			}
+			channels = append(channels, name)
 		}
 	}
 
-	if len(channels) == 0 && len(doneAgents) == 0 {
+	if len(channels) == 0 {
 		return nil
 	}
 
+	fmt.Println()
 	fmt.Println("Channels")
-	fmt.Println("========")
 	fmt.Println()
 
 	for _, ch := range channels {
@@ -164,19 +180,7 @@ func showChannelStatus() error {
 			shortSHA = shortSHA[:8]
 		}
 
-		fmt.Printf("✓ %s\n", ch)
-		fmt.Printf("   Signaled by: %s (sha: %s)\n", payload.Agent, shortSHA)
-		fmt.Println()
-	}
-
-	if len(doneAgents) > 0 {
-		fmt.Println("Completed Agents")
-		fmt.Println("================")
-		fmt.Println()
-		for _, agent := range doneAgents {
-			fmt.Printf("✓ %s\n", agent)
-		}
-		fmt.Println()
+		fmt.Printf("  ✓ %-16s signaled by %s (%s)\n", ch, payload.Agent, shortSHA)
 	}
 
 	return nil
