@@ -57,7 +57,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 func updateGitignore() error {
 	gitignorePath := ".gitignore"
-	entry := ".air/worktrees/"
+	entries := []string{".air/worktrees/", ".air/launch.sh", ".air/.context", ".air/.assignment"}
 
 	// Read existing .gitignore
 	content, err := os.ReadFile(gitignorePath)
@@ -65,12 +65,19 @@ func updateGitignore() error {
 		return fmt.Errorf("failed to read .gitignore: %w", err)
 	}
 
-	// Check if already present
-	if strings.Contains(string(content), entry) {
+	// Check which entries need to be added
+	var toAdd []string
+	for _, entry := range entries {
+		if !strings.Contains(string(content), entry) {
+			toAdd = append(toAdd, entry)
+		}
+	}
+
+	if len(toAdd) == 0 {
 		return nil
 	}
 
-	// Append entry
+	// Append entries
 	f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open .gitignore: %w", err)
@@ -82,8 +89,14 @@ func updateGitignore() error {
 		f.WriteString("\n")
 	}
 
-	f.WriteString("\n# AIR workflow\n")
-	f.WriteString(entry + "\n")
+	// Only add header if we're adding new entries
+	if !strings.Contains(string(content), "# AIR workflow") {
+		f.WriteString("\n# AIR workflow\n")
+	}
+
+	for _, entry := range toAdd {
+		f.WriteString(entry + "\n")
+	}
 	fmt.Println("Updated .gitignore")
 
 	return nil
@@ -97,7 +110,7 @@ You are an agent in a concurrent workflow. Multiple agents work in parallel on i
 You are running in a git worktree - a complete copy of the repository on your own branch. All source files are available in your current working directory. Use RELATIVE paths (e.g., ` + "`" + `./cmd/` + "`" + `, ` + "`" + `./internal/` + "`" + `) - do NOT use absolute paths to the parent repository.
 
 ### Your Assignment
-Read your packet in the provided .air/packets/ path before starting.
+Your work packet was provided in your initial prompt. It contains your objective, boundaries, and acceptance criteria.
 
 ### Boundaries
 Only modify files within your packet's stated scope. If you need changes outside your boundaries, signal BLOCKED.

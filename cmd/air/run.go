@@ -76,10 +76,22 @@ func runRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
 
+	// Read context once from main repo
+	contextContent, err := os.ReadFile(filepath.Join(".air", "context.md"))
+	if err != nil {
+		return fmt.Errorf("failed to read context: %w", err)
+	}
+
 	// Create worktrees directory
 	worktreesDir := filepath.Join(".air", "worktrees")
 	if err := os.MkdirAll(worktreesDir, 0755); err != nil {
 		return fmt.Errorf("failed to create worktrees directory: %w", err)
+	}
+
+	// Permission flag for claude
+	permFlag := ""
+	if !noAutoAccept {
+		permFlag = "--permission-mode acceptEdits"
 	}
 
 	// Create worktrees for each packet
@@ -90,17 +102,44 @@ func runRun(cmd *cobra.Command, args []string) error {
 		// Check if worktree already exists
 		if _, err := os.Stat(wtPath); err == nil {
 			fmt.Printf("Worktree %s already exists\n", name)
-			continue
+		} else {
+			// Create worktree
+			createCmd := exec.Command("git", "worktree", "add", wtPath, "-b", branch)
+			createCmd.Stdout = os.Stdout
+			createCmd.Stderr = os.Stderr
+			if err := createCmd.Run(); err != nil {
+				return fmt.Errorf("failed to create worktree for %s: %w", name, err)
+			}
+			fmt.Printf("Created worktree: %s (branch: %s)\n", wtPath, branch)
 		}
 
-		// Create worktree
-		createCmd := exec.Command("git", "worktree", "add", wtPath, "-b", branch)
-		createCmd.Stdout = os.Stdout
-		createCmd.Stderr = os.Stderr
-		if err := createCmd.Run(); err != nil {
-			return fmt.Errorf("failed to create worktree for %s: %w", name, err)
+		// Read packet content from main repo
+		packetContent, err := os.ReadFile(filepath.Join(".air", "packets", name+".md"))
+		if err != nil {
+			return fmt.Errorf("failed to read packet %s: %w", name, err)
 		}
-		fmt.Printf("Created worktree: %s (branch: %s)\n", wtPath, branch)
+
+		// Build the assignment prompt
+		assignment := fmt.Sprintf("Your assignment:\n\n%s\n\nImplement this.", string(packetContent))
+
+		// Write content files to worktree (avoids shell escaping issues)
+		wtAirDir := filepath.Join(wtPath, ".air")
+		os.MkdirAll(wtAirDir, 0755)
+
+		if err := os.WriteFile(filepath.Join(wtAirDir, ".context"), contextContent, 0644); err != nil {
+			return fmt.Errorf("failed to write context for %s: %w", name, err)
+		}
+		if err := os.WriteFile(filepath.Join(wtAirDir, ".assignment"), []byte(assignment), 0644); err != nil {
+			return fmt.Errorf("failed to write assignment for %s: %w", name, err)
+		}
+
+		// Generate launcher script that reads from files
+		launcherScript := fmt.Sprintf("#!/bin/bash\nexec claude %s --append-system-prompt \"$(cat .air/.context)\" \"$(cat .air/.assignment)\"\n", permFlag)
+
+		scriptPath := filepath.Join(wtAirDir, "launch.sh")
+		if err := os.WriteFile(scriptPath, []byte(launcherScript), 0755); err != nil {
+			return fmt.Errorf("failed to write launcher script for %s: %w", name, err)
+		}
 	}
 
 	// Start tmux session
@@ -108,9 +147,6 @@ func runRun(cmd *cobra.Command, args []string) error {
 
 	// Kill existing session if present
 	exec.Command("tmux", "kill-session", "-t", sessionName).Run()
-
-	// Absolute path to context file (for shell command substitution)
-	contextPath := filepath.Join(projectRoot, ".air", "context.md")
 
 	// Create new session with first packet
 	firstPacket := packets[0]
@@ -122,29 +158,8 @@ func runRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create tmux session: %w", err)
 	}
 
-	// .air directory path (for --add-dir to grant access from worktree)
-	airDir := filepath.Join(projectRoot, ".air")
-
-	// Permission mode flag
-	permissionFlag := ""
-	if !noAutoAccept {
-		permissionFlag = "--permission-mode acceptEdits"
-	}
-
-	// Build claude command:
-	// - --add-dir grants access to .air/ from the worktree
-	// - --permission-mode acceptEdits auto-accepts file edits
-	// - --append-system-prompt injects workflow context
-	// - Initial prompt tells agent to read their packet
-	claudeCmd := fmt.Sprintf(
-		`claude --add-dir '%s' %s --append-system-prompt "$(cat '%s')" "Read %s/packets/%s.md and implement it."`,
-		airDir,
-		permissionFlag,
-		contextPath,
-		airDir,
-		firstPacket,
-	)
-	exec.Command("tmux", "send-keys", "-t", sessionName+":"+firstPacket, claudeCmd, "Enter").Run()
+	// Run launcher script for first packet
+	exec.Command("tmux", "send-keys", "-t", sessionName+":"+firstPacket, ".air/launch.sh", "Enter").Run()
 
 	// Create windows for remaining packets
 	for _, name := range packets[1:] {
@@ -153,16 +168,8 @@ func runRun(cmd *cobra.Command, args []string) error {
 		// Create window
 		exec.Command("tmux", "new-window", "-t", sessionName, "-n", name, "-c", wtPath).Run()
 
-		// Send claude command
-		claudeCmd := fmt.Sprintf(
-			`claude --add-dir '%s' %s --append-system-prompt "$(cat '%s')" "Read %s/packets/%s.md and implement it."`,
-			airDir,
-			permissionFlag,
-			contextPath,
-			airDir,
-			name,
-		)
-		exec.Command("tmux", "send-keys", "-t", sessionName+":"+name, claudeCmd, "Enter").Run()
+		// Run launcher script
+		exec.Command("tmux", "send-keys", "-t", sessionName+":"+name, ".air/launch.sh", "Enter").Run()
 	}
 
 	// Create dashboard window (before the agent windows so agents are more prominent)
