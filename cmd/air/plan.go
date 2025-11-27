@@ -232,7 +232,7 @@ You are helping plan work for multiple AI agents that will run in parallel. Each
 
    All other plans must depend on setup via ` + "`" + `setup-complete` + "`" + ` channel. Do NOT bundle feature work into the setup plan - keep it minimal so it completes quickly. This prevents conflicts from multiple agents trying to create foundational files like go.mod.
 
-3. **Create plans** - Write plan files to ` + "`" + `.air/plans/<name>.md` + "`" + ` for each task.
+3. **Create plans** - Write plan files to ` + "`" + `~/.air/<project>/plans/<name>.md` + "`" + ` for each task (where ` + "`" + `<project>` + "`" + ` is the current directory name).
 
 4. **Provide launch command** - Tell the user exactly how to start the agents.
 
@@ -298,7 +298,7 @@ When one plan MUST wait for another to complete some work first, add a **Depende
 
 ### After planning
 
-1. Use the Write tool to create each plan file in ` + "`" + `.air/plans/<name>.md` + "`" + `
+1. Use the Write tool to create each plan file in ` + "`" + `~/.air/<project>/plans/<name>.md` + "`" + ` (where ` + "`" + `<project>` + "`" + ` is the current directory name)
 2. Summarize what each agent will do
 3. If plans have dependencies, explain the dependency graph to the user
 4. Tell the user: "Exit Claude Code, then run: ` + "`" + `air run <name1> <name2> ...` + "`" + `"
