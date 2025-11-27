@@ -29,19 +29,25 @@ func runIntegrate(cmd *cobra.Command, args []string) error {
 	// Build integration prompt
 	integrationPrompt := string(context) + "\n\n" + integrationContext
 
-	// Allowed tools for integration: read-only git commands, air commands, and file inspection
-	allowedTools := `Bash(git worktree:*) Bash(git branch:*) Bash(git log:*) Bash(git diff:*) Bash(git merge-tree:*) Bash(git merge-base:*) Bash(air plan:*) Bash(cat:*) Bash(ls:*)`
-
 	// Launch claude with initial prompt
-	claudeCmd := exec.Command("claude",
-		"--allowedTools", allowedTools,
-		"--append-system-prompt", integrationPrompt,
-		"Begin integration. Show me the status of agent branches and guide me through merging.")
+	claudeCmd := buildIntegrateCommand(integrationPrompt)
 	claudeCmd.Stdin = os.Stdin
 	claudeCmd.Stdout = os.Stdout
 	claudeCmd.Stderr = os.Stderr
 
 	return claudeCmd.Run()
+}
+
+// buildIntegrateCommand constructs the claude command for integration mode.
+// Extracted for testability - allows verifying command args are correctly structured.
+func buildIntegrateCommand(integrationPrompt string) *exec.Cmd {
+	// Allowed tools for integration: read-only git commands, air commands, and file inspection
+	allowedTools := `Bash(git worktree:*) Bash(git branch:*) Bash(git log:*) Bash(git diff:*) Bash(git merge-tree:*) Bash(git merge-base:*) Bash(air plan:*) Bash(cat:*) Bash(ls:*)`
+
+	return exec.Command("claude",
+		"--allowedTools", allowedTools,
+		"--append-system-prompt", integrationPrompt,
+		"Begin integration. Show me the status of agent branches and guide me through merging.")
 }
 
 const integrationContext = `## Integration Mode
