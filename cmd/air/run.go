@@ -105,7 +105,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 	}
 
 	// Language-agnostic allowed tools: air commands, read-only git, info gathering
-	allowedTools := `--allowedTools "Bash(air:*) Bash(git status:*) Bash(git log:*) Bash(git diff:*) Bash(git branch:*) Bash(ls:*) Bash(find:*) Bash(cat:*) Bash(head:*) Bash(tail:*) Bash(wc:*)"`
+	allowedTools := `--allowedTools "Bash(air:*) Bash(git status:*) Bash(git log:*) Bash(git diff:*) Bash(git branch:*) Bash(git merge-tree:*) Bash(mkdir:*) Bash(ls:*) Bash(find:*) Bash(cat:*) Bash(head:*) Bash(tail:*) Bash(wc:*)"`
 
 	// Create worktrees for each plan
 	for _, name := range plans {
