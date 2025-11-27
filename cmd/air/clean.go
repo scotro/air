@@ -28,7 +28,7 @@ func init() {
 }
 
 func runClean(cmd *cobra.Command, args []string) error {
-	worktreesDir := filepath.Join(".air", "worktrees")
+	worktreesDir := getWorktreesDir()
 
 	// Get all existing worktrees
 	entries, err := os.ReadDir(worktreesDir)
@@ -90,33 +90,44 @@ func runClean(cmd *cobra.Command, args []string) error {
 	// Prune worktrees
 	exec.Command("git", "worktree", "prune").Run()
 
-	// Clean up channels
-	channelsDir := filepath.Join(".air", "channels")
+	// Clean up channels and agent data
+	channelsDir := getChannelsDir()
+	agentsDir := getAgentsDir()
 	if len(args) == 0 {
-		// Cleaning all worktrees - remove entire channels directory
+		// Cleaning all worktrees - remove entire channels and agents directories
 		if err := os.RemoveAll(channelsDir); err != nil {
 			fmt.Printf("Warning: failed to remove channels directory: %v\n", err)
 		} else {
 			fmt.Println("Cleared channels directory")
 		}
+		if err := os.RemoveAll(agentsDir); err != nil {
+			fmt.Printf("Warning: failed to remove agents directory: %v\n", err)
+		} else {
+			fmt.Println("Cleared agents directory")
+		}
 	} else {
-		// Cleaning specific worktrees - remove their done/<name>.json files
+		// Cleaning specific worktrees - remove their done/<name>.json and agent data
 		for _, name := range names {
 			doneFile := filepath.Join(channelsDir, "done", name+".json")
 			if err := os.Remove(doneFile); err == nil {
 				fmt.Printf("Removed done channel: %s\n", name)
 			}
+			agentDir := filepath.Join(agentsDir, name)
+			if err := os.RemoveAll(agentDir); err == nil {
+				fmt.Printf("Removed agent data: %s\n", name)
+			}
 		}
 	}
 
 	// Archive plans
-	archivedDir := filepath.Join(".air", "plans", "archive")
+	plansDir := getPlansDir()
+	archivedDir := filepath.Join(plansDir, "archive")
 	if err := os.MkdirAll(archivedDir, 0755); err != nil {
 		return fmt.Errorf("failed to create archive directory: %w", err)
 	}
 
 	for _, name := range names {
-		planFile := filepath.Join(".air", "plans", name+".md")
+		planFile := filepath.Join(plansDir, name+".md")
 		archivedFile := filepath.Join(archivedDir, name+".md")
 
 		if err := os.Rename(planFile, archivedFile); err != nil {

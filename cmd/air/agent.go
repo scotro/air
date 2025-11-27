@@ -65,38 +65,14 @@ func init() {
 	agentCmd.AddCommand(agentDoneCmd)
 }
 
-// getChannelsDir returns the path to the channels directory
-func getChannelsDir() (string, error) {
-	// First try AIR_CHANNELS_DIR
-	if dir := os.Getenv("AIR_CHANNELS_DIR"); dir != "" {
-		return dir, nil
-	}
-
-	// Fall back to AIR_PROJECT_ROOT/.air/channels
-	if root := os.Getenv("AIR_PROJECT_ROOT"); root != "" {
-		return filepath.Join(root, ".air", "channels"), nil
-	}
-
-	// Last resort: try current directory (for testing)
-	return filepath.Join(".air", "channels"), nil
-}
-
 // getChannelPath returns the full path to a channel file
-func getChannelPath(channel string) (string, error) {
-	dir, err := getChannelsDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, channel+".json"), nil
+func getChannelPath(channel string) string {
+	return filepath.Join(getChannelsDir(), channel+".json")
 }
 
 // readChannel reads and parses a channel file
 func readChannel(channel string) (*ChannelPayload, error) {
-	path, err := getChannelPath(channel)
-	if err != nil {
-		return nil, err
-	}
-
+	path := getChannelPath(channel)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -112,10 +88,7 @@ func readChannel(channel string) (*ChannelPayload, error) {
 
 // writeChannel writes a payload to a channel file
 func writeChannel(channel string, payload *ChannelPayload) error {
-	path, err := getChannelPath(channel)
-	if err != nil {
-		return err
-	}
+	path := getChannelPath(channel)
 
 	// Create parent directories if needed (for done/<id> channels)
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
@@ -136,11 +109,7 @@ func writeChannel(channel string, payload *ChannelPayload) error {
 
 // channelExists checks if a channel has been signaled
 func channelExists(channel string) bool {
-	path, err := getChannelPath(channel)
-	if err != nil {
-		return false
-	}
-	_, err = os.Stat(path)
+	_, err := os.Stat(getChannelPath(channel))
 	return err == nil
 }
 

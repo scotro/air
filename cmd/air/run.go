@@ -27,19 +27,12 @@ func init() {
 }
 
 func runRun(cmd *cobra.Command, args []string) error {
-	// Check .air/ exists
-	if _, err := os.Stat(".air"); os.IsNotExist(err) {
+	// Check initialization
+	if !isInitialized() {
 		return fmt.Errorf("not initialized (run 'air init' first)")
 	}
 
-	// Check if .gitignore has uncommitted changes containing .air/
-	// Worktrees are created from committed state, so uncommitted .gitignore
-	// means agents will see .air/ as untracked files
-	if err := checkGitignoreCommitted(); err != nil {
-		return err
-	}
-
-	plansDir := filepath.Join(".air", "plans")
+	plansDir := getPlansDir()
 
 	// Get available plans
 	available, err := getAvailablePlans(plansDir)
@@ -83,20 +76,24 @@ func runRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
 
-	// Read context once from main repo
-	contextContent, err := os.ReadFile(filepath.Join(".air", "context.md"))
+	// Read context once
+	contextContent, err := os.ReadFile(getContextPath())
 	if err != nil {
 		return fmt.Errorf("failed to read context: %w", err)
 	}
 
-	// Create worktrees directory
-	worktreesDir := filepath.Join(".air", "worktrees")
+	// Get paths
+	worktreesDir := getWorktreesDir()
+	agentsDir := getAgentsDir()
+	channelsDir := getChannelsDir()
+
+	// Create directories
 	if err := os.MkdirAll(worktreesDir, 0755); err != nil {
 		return fmt.Errorf("failed to create worktrees directory: %w", err)
 	}
-
-	// Create channels directory for agent coordination
-	channelsDir := filepath.Join(projectRoot, ".air", "channels")
+	if err := os.MkdirAll(agentsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create agents directory: %w", err)
+	}
 	if err := os.MkdirAll(channelsDir, 0755); err != nil {
 		return fmt.Errorf("failed to create channels directory: %w", err)
 	}
@@ -121,6 +118,7 @@ func runRun(cmd *cobra.Command, args []string) error {
 		} else {
 			// Create worktree
 			createCmd := exec.Command("git", "worktree", "add", wtPath, "-b", branch)
+			createCmd.Dir = projectRoot
 			createCmd.Stdout = os.Stdout
 			createCmd.Stderr = os.Stderr
 			if err := createCmd.Run(); err != nil {
@@ -129,8 +127,8 @@ func runRun(cmd *cobra.Command, args []string) error {
 			fmt.Printf("Created worktree: %s (branch: %s)\n", wtPath, branch)
 		}
 
-		// Read plan content from main repo
-		planContent, err := os.ReadFile(filepath.Join(".air", "plans", name+".md"))
+		// Read plan content
+		planContent, err := os.ReadFile(filepath.Join(plansDir, name+".md"))
 		if err != nil {
 			return fmt.Errorf("failed to read plan %s: %w", name, err)
 		}
@@ -138,28 +136,29 @@ func runRun(cmd *cobra.Command, args []string) error {
 		// Build the assignment prompt
 		assignment := fmt.Sprintf("Your assignment:\n\n%s\n\nImplement this.", string(planContent))
 
-		// Write content files to worktree (avoids shell escaping issues)
-		wtAirDir := filepath.Join(wtPath, ".air")
-		os.MkdirAll(wtAirDir, 0755)
+		// Create agent data directory
+		agentDir := filepath.Join(agentsDir, name)
+		os.MkdirAll(agentDir, 0755)
 
-		if err := os.WriteFile(filepath.Join(wtAirDir, ".context"), contextContent, 0644); err != nil {
+		// Write context and assignment files
+		if err := os.WriteFile(filepath.Join(agentDir, "context"), contextContent, 0644); err != nil {
 			return fmt.Errorf("failed to write context for %s: %w", name, err)
 		}
-		if err := os.WriteFile(filepath.Join(wtAirDir, ".assignment"), []byte(assignment), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(agentDir, "assignment"), []byte(assignment), 0644); err != nil {
 			return fmt.Errorf("failed to write assignment for %s: %w", name, err)
 		}
 
-		// Generate launcher script that reads from files and sets env vars for agent coordination
-		wtAbsPath := filepath.Join(projectRoot, ".air", "worktrees", name)
+		// Generate launcher script
 		launcherScript := fmt.Sprintf(`#!/bin/bash
 export AIR_AGENT_ID="%s"
 export AIR_WORKTREE="%s"
 export AIR_PROJECT_ROOT="%s"
 export AIR_CHANNELS_DIR="%s"
-exec claude %s %s --append-system-prompt "$(cat .air/.context)" "$(cat .air/.assignment)"
-`, name, wtAbsPath, projectRoot, channelsDir, permFlag, allowedTools)
+cd "$AIR_WORKTREE"
+exec claude %s %s --append-system-prompt "$(cat %s/context)" "$(cat %s/assignment)"
+`, name, wtPath, projectRoot, channelsDir, permFlag, allowedTools, agentDir, agentDir)
 
-		scriptPath := filepath.Join(wtAirDir, "launch.sh")
+		scriptPath := filepath.Join(agentDir, "launch.sh")
 		if err := os.WriteFile(scriptPath, []byte(launcherScript), 0755); err != nil {
 			return fmt.Errorf("failed to write launcher script for %s: %w", name, err)
 		}
@@ -173,7 +172,8 @@ exec claude %s %s --append-system-prompt "$(cat .air/.context)" "$(cat .air/.ass
 
 	// Create new session with first plan
 	firstPlan := plans[0]
-	firstWtPath := filepath.Join(projectRoot, ".air", "worktrees", firstPlan)
+	firstWtPath := filepath.Join(worktreesDir, firstPlan)
+	firstAgentDir := filepath.Join(agentsDir, firstPlan)
 
 	// Create session
 	tmuxNew := exec.Command("tmux", "new-session", "-d", "-s", sessionName, "-n", firstPlan, "-c", firstWtPath)
@@ -182,17 +182,18 @@ exec claude %s %s --append-system-prompt "$(cat .air/.context)" "$(cat .air/.ass
 	}
 
 	// Run launcher script for first plan
-	exec.Command("tmux", "send-keys", "-t", sessionName+":"+firstPlan, ".air/launch.sh", "Enter").Run()
+	exec.Command("tmux", "send-keys", "-t", sessionName+":"+firstPlan, firstAgentDir+"/launch.sh", "Enter").Run()
 
 	// Create windows for remaining plans
 	for _, name := range plans[1:] {
-		wtPath := filepath.Join(projectRoot, ".air", "worktrees", name)
+		wtPath := filepath.Join(worktreesDir, name)
+		agentDir := filepath.Join(agentsDir, name)
 
 		// Create window
 		exec.Command("tmux", "new-window", "-t", sessionName, "-n", name, "-c", wtPath).Run()
 
 		// Run launcher script
-		exec.Command("tmux", "send-keys", "-t", sessionName+":"+name, ".air/launch.sh", "Enter").Run()
+		exec.Command("tmux", "send-keys", "-t", sessionName+":"+name, agentDir+"/launch.sh", "Enter").Run()
 	}
 
 	// Create dashboard window (before the agent windows so agents are more prominent)
@@ -238,32 +239,4 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
-}
-
-func checkGitignoreCommitted() error {
-	// Check if .gitignore has uncommitted changes
-	statusCmd := exec.Command("git", "status", "--porcelain", ".gitignore")
-	output, err := statusCmd.Output()
-	if err != nil {
-		// If git status fails, skip this check
-		return nil
-	}
-
-	status := strings.TrimSpace(string(output))
-	if status == "" {
-		// .gitignore is clean
-		return nil
-	}
-
-	// Check if the uncommitted .gitignore contains .air/
-	content, err := os.ReadFile(".gitignore")
-	if err != nil {
-		return nil
-	}
-
-	if strings.Contains(string(content), ".air/") {
-		return fmt.Errorf(".gitignore has uncommitted changes containing '.air/'\n\nWorktrees are created from committed state, so agents will see .air/ as untracked files.\nCommit .gitignore first:\n  git add .gitignore && git commit -m \"Add .air/ to gitignore\"")
-	}
-
-	return nil
 }

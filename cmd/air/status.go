@@ -19,8 +19,8 @@ var statusCmd = &cobra.Command{
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
-	worktreesDir := filepath.Join(".air", "worktrees")
-	channelsDir := filepath.Join(".air", "channels")
+	worktreesDir := getWorktreesDir()
+	channelsDir := getChannelsDir()
 
 	entries, err := os.ReadDir(worktreesDir)
 	if err != nil {
@@ -129,7 +129,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 }
 
 func showChannelStatus(doneAgents map[string]bool) error {
-	channelsDir := filepath.Join(".air", "channels")
+	channelsDir := getChannelsDir()
 
 	entries, err := os.ReadDir(channelsDir)
 	if err != nil {

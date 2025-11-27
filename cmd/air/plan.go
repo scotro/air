@@ -55,14 +55,13 @@ func init() {
 }
 
 func runPlan(cmd *cobra.Command, args []string) error {
-	// Check .air/ exists
-	if _, err := os.Stat(".air"); os.IsNotExist(err) {
+	// Check initialization
+	if !isInitialized() {
 		return fmt.Errorf("not initialized (run 'air init' first)")
 	}
 
 	// Read context
-	contextPath := filepath.Join(".air", "context.md")
-	context, err := os.ReadFile(contextPath)
+	context, err := os.ReadFile(getContextPath())
 	if err != nil {
 		return fmt.Errorf("failed to read context: %w", err)
 	}
@@ -85,11 +84,12 @@ func runPlanList(cmd *cobra.Command, args []string) error {
 	var plansDir string
 	var label string
 
+	basePlansDir := getPlansDir()
 	if listArchived {
-		plansDir = filepath.Join(".air", "plans", "archive")
+		plansDir = filepath.Join(basePlansDir, "archive")
 		label = "Archived Plans:"
 	} else {
-		plansDir = filepath.Join(".air", "plans")
+		plansDir = basePlansDir
 		label = "Plans:"
 	}
 
@@ -147,7 +147,7 @@ func runPlanList(cmd *cobra.Command, args []string) error {
 
 func runPlanShow(cmd *cobra.Command, args []string) error {
 	name := args[0]
-	planPath := filepath.Join(".air", "plans", name+".md")
+	planPath := filepath.Join(getPlansDir(), name+".md")
 
 	content, err := os.ReadFile(planPath)
 	if err != nil {
@@ -163,8 +163,9 @@ func runPlanShow(cmd *cobra.Command, args []string) error {
 
 func runPlanArchive(cmd *cobra.Command, args []string) error {
 	name := args[0]
-	srcPath := filepath.Join(".air", "plans", name+".md")
-	archiveDir := filepath.Join(".air", "plans", "archive")
+	plansDir := getPlansDir()
+	srcPath := filepath.Join(plansDir, name+".md")
+	archiveDir := filepath.Join(plansDir, "archive")
 	dstPath := filepath.Join(archiveDir, name+".md")
 
 	// Check source exists
@@ -188,8 +189,9 @@ func runPlanArchive(cmd *cobra.Command, args []string) error {
 
 func runPlanRestore(cmd *cobra.Command, args []string) error {
 	name := args[0]
-	srcPath := filepath.Join(".air", "plans", "archive", name+".md")
-	dstPath := filepath.Join(".air", "plans", name+".md")
+	plansDir := getPlansDir()
+	srcPath := filepath.Join(plansDir, "archive", name+".md")
+	dstPath := filepath.Join(plansDir, name+".md")
 
 	// Check source exists
 	if _, err := os.Stat(srcPath); os.IsNotExist(err) {

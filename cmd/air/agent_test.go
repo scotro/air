@@ -160,8 +160,8 @@ func TestAgentWait_ReturnsImmediatelyIfChannelExists(t *testing.T) {
 		t.Fatalf("wait failed: %v\n%s", err, out)
 	}
 
-	// Should complete quickly (within 1 second)
-	if time.Since(start) > time.Second {
+	// Should complete quickly (within 5 seconds - accounting for build/process overhead)
+	if time.Since(start) > 5*time.Second {
 		t.Error("wait took too long for pre-existing channel")
 	}
 
@@ -368,15 +368,16 @@ func TestRun_SetsEnvironmentVariables(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	initAndCommit(t, tmpDir)
+	initProject(t, tmpDir)
 
 	// Create test plan
-	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "test.md"), []byte("# Test\n**Objective:** Test"), 0644)
+	airDir := getTestAirDir(t, tmpDir)
+	os.WriteFile(filepath.Join(airDir, "plans", "test.md"), []byte("# Test\n**Objective:** Test"), 0644)
 
 	runAir(t, tmpDir, "run", "test")
 
-	// Read the launch script
-	scriptPath := filepath.Join(tmpDir, ".air", "worktrees", "test", ".air", "launch.sh")
+	// Read the launch script (now in agents dir)
+	scriptPath := filepath.Join(airDir, "agents", "test", "launch.sh")
 	content, err := os.ReadFile(scriptPath)
 	if err != nil {
 		t.Fatalf("failed to read launch.sh: %v", err)
@@ -408,15 +409,16 @@ func TestRun_CreatesChannelsDirectory(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	initAndCommit(t, tmpDir)
+	initProject(t, tmpDir)
 
 	// Create test plan
-	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "test.md"), []byte("# Test"), 0644)
+	airDir := getTestAirDir(t, tmpDir)
+	os.WriteFile(filepath.Join(airDir, "plans", "test.md"), []byte("# Test"), 0644)
 
 	runAir(t, tmpDir, "run", "test")
 
 	// Check channels directory was created
-	channelsDir := filepath.Join(tmpDir, ".air", "channels")
+	channelsDir := filepath.Join(airDir, "channels")
 	if _, err := os.Stat(channelsDir); os.IsNotExist(err) {
 		t.Error("channels directory was not created")
 	}
@@ -430,15 +432,7 @@ func TestRun_CreatesChannelsDirectory(t *testing.T) {
 func runAirWithEnv(t *testing.T, dir string, env map[string]string, args ...string) (string, error) {
 	t.Helper()
 
-	// Build the binary if needed
-	binPath := filepath.Join(os.TempDir(), "air-test-binary")
-	buildCmd := exec.Command("go", "build", "-o", binPath, ".")
-	buildCmd.Dir = filepath.Join(mustGetwd(t), ".")
-	if out, err := buildCmd.CombinedOutput(); err != nil {
-		t.Fatalf("failed to build air: %v\n%s", err, out)
-	}
-
-	cmd := exec.Command(binPath, args...)
+	cmd := exec.Command(testBinaryPath, args...)
 	cmd.Dir = dir
 
 	// Set up environment - filter out AIR_* variables from parent environment

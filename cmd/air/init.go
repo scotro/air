@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -13,7 +11,7 @@ import (
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize project for Air workflow",
-	Long:  `Creates .air/ directory with context and plans subdirectories.`,
+	Long:  `Creates ~/.air/<project>/ directory with context and plans subdirectories.`,
 	RunE:  runInit,
 }
 
@@ -23,68 +21,44 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not a git repository (run 'git init' first)")
 	}
 
+	// Get air directory path
+	airDir, err := getAirDir()
+	if err != nil {
+		return fmt.Errorf("failed to determine air directory: %w", err)
+	}
+
+	projectName, _ := getProjectName()
+
+	// Check for collision (directory already exists for different project)
+	if _, err := os.Stat(airDir); err == nil {
+		// Directory exists - check if it's for this project by verifying we're in the right place
+		// For now, just warn and continue (re-init is allowed)
+		fmt.Printf("Air directory already exists: %s\n", airDir)
+	}
+
 	// Create directories
-	dirs := []string{".air", ".air/plans"}
-	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("failed to create %s: %w", dir, err)
-		}
+	plansDir := getPlansDir()
+	if err := os.MkdirAll(plansDir, 0755); err != nil {
+		return fmt.Errorf("failed to create plans directory: %w", err)
 	}
 
 	// Create context.md
-	contextPath := filepath.Join(".air", "context.md")
+	contextPath := getContextPath()
 	if _, err := os.Stat(contextPath); os.IsNotExist(err) {
 		if err := os.WriteFile(contextPath, []byte(contextTemplate), 0644); err != nil {
 			return fmt.Errorf("failed to create context.md: %w", err)
 		}
-		fmt.Println("Created .air/context.md")
+		fmt.Printf("Created %s\n", contextPath)
 	} else {
-		fmt.Println(".air/context.md already exists")
+		fmt.Printf("context.md already exists at %s\n", contextPath)
 	}
 
-	// Update .gitignore
-	if err := updateGitignore(); err != nil {
-		return err
-	}
-
-	fmt.Println("\nInitialized Air workflow. Next steps:")
+	fmt.Printf("\nInitialized Air workflow for '%s'.\n", projectName)
+	fmt.Printf("Air directory: %s\n", airDir)
+	fmt.Println("\nNext steps:")
 	fmt.Println("  air plan              # Start planning session")
 	fmt.Println("  air plan list         # View plans")
 	fmt.Println("  air run <names...>    # Launch agents")
-
-	return nil
-}
-
-func updateGitignore() error {
-	gitignorePath := ".gitignore"
-	entry := ".air/"
-
-	// Read existing .gitignore
-	content, err := os.ReadFile(gitignorePath)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to read .gitignore: %w", err)
-	}
-
-	// Check if already present
-	if strings.Contains(string(content), entry) {
-		return nil
-	}
-
-	// Append entry
-	f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to open .gitignore: %w", err)
-	}
-	defer f.Close()
-
-	// Add newline if file doesn't end with one
-	if len(content) > 0 && content[len(content)-1] != '\n' {
-		f.WriteString("\n")
-	}
-
-	f.WriteString("\n# Air workflow\n")
-	f.WriteString(entry + "\n")
-	fmt.Println("Updated .gitignore")
 
 	return nil
 }
