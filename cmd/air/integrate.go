@@ -29,8 +29,12 @@ func runIntegrate(cmd *cobra.Command, args []string) error {
 	// Build integration prompt
 	integrationPrompt := string(context) + "\n\n" + integrationContext
 
+	// Allowed tools for integration: read-only git commands, air commands, and file inspection
+	allowedTools := `--allowedTools "Bash(git worktree:*) Bash(git branch:*) Bash(git log:*) Bash(git diff:*) Bash(git merge-tree:*) Bash(git merge-base:*) Bash(air plan:*) Bash(cat:*) Bash(ls:*)"`
+
 	// Launch claude with initial prompt
 	claudeCmd := exec.Command("claude",
+		allowedTools,
 		"--append-system-prompt", integrationPrompt,
 		"Begin integration. Show me the status of agent branches and guide me through merging.")
 	claudeCmd.Stdin = os.Stdin
@@ -52,7 +56,7 @@ Run these commands to understand the current state:
 
 ### Step 2: Determine merge order from dependencies
 
-Read the plan files in ` + "`" + `~/.air/<project>/plans/*.md` + "`" + ` to understand the dependency graph. Look for the **Dependencies** sections - plans that "Signal" a channel must be merged before plans that "Wait on" that channel.
+Use ` + "`" + `air plan list` + "`" + ` to see all plans, then ` + "`" + `air plan show <name>` + "`" + ` to read each one. Look for the **Dependencies** sections - plans that "Signal" a channel must be merged before plans that "Wait on" that channel.
 
 Build a topological merge order. For example:
 - setup (no dependencies) → merge first
