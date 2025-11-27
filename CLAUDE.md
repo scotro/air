@@ -29,14 +29,14 @@ internal/          # (future) shared packages
 
 ## Key Concepts
 
-- **Plans**: Work units defined in `.air/plans/*.md`
-- **Context**: Workflow instructions in `.air/context.md`, injected via `--append-system-prompt`
-- **Worktrees**: Isolated git worktrees in `.air/worktrees/` for parallel work
+- **Plans**: Work units defined in `~/.air/<project>/plans/*.md`
+- **Context**: Workflow instructions in `~/.air/<project>/context.md`, injected via `--append-system-prompt`
+- **Worktrees**: Isolated git worktrees in `~/.air/<project>/worktrees/` for parallel work
 - **Branches**: Named `air/<plan-name>`
-- **Channels**: Coordination points in `.air/channels/` for concurrent plans with dependencies
+- **Channels**: Coordination points in `~/.air/<project>/channels/` for concurrent plans with dependencies
 
 ## Design Principles
 
 1. Non-invasive: Never touch `.claude/` or `CLAUDE.md` in user projects
 2. Wrapper: We wrap `claude` with context, we don't configure it
-3. Our namespace: Everything lives in `.air/`
+3. Our namespace: Everything lives in `~/.air/<project>/`

@@ -45,7 +45,7 @@ cd ~/my-project
 air init
 ```
 
-Creates `.air/` directory. Does not touch `.claude/` or `CLAUDE.md`.
+Creates `~/.air/<project>/` directory. Does not touch `.claude/` or `CLAUDE.md`.
 
 ### Plan work
 
@@ -53,7 +53,7 @@ Creates `.air/` directory. Does not touch `.claude/` or `CLAUDE.md`.
 air plan
 ```
 
-Claude helps decompose your work into parallelizable plans stored in `.air/plans/`.
+Claude helps decompose your work into parallelizable plans stored in `~/.air/<project>/plans/`.
 
 ```bash
 air plan list            # View plans
@@ -91,7 +91,7 @@ air clean <name>      # Remove specific worktree
 ## Directory structure
 
 ```
-.air/               # Entire directory is gitignored
+~/.air/<project>/   # Per-project air data in home directory
 ├── context.md      # Workflow instructions (injected to all agents)
 ├── plans/          # Plan definitions
 ├── channels/       # Coordination signals for concurrent plans

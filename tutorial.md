@@ -49,7 +49,7 @@ git commit -m "Initial project structure"
 air init
 ```
 
-This creates `.air/` with context for agent coordination.
+This creates `~/.air/mini-redis/` with context for agent coordination.
 
 ## 3. Plan the Work
 
@@ -67,7 +67,7 @@ Claude will ask what you want to build. Describe the Redis clone:
 > - Support TTL: EXPIRE, TTL commands with background expiration
 > - Be safe for concurrent access
 
-Claude will decompose this into 3-4 parallel plans and write them to `.air/plans/`. Typical decomposition:
+Claude will decompose this into 3-4 parallel plans and write them to `~/.air/mini-redis/plans/`. Typical decomposition:
 
 | Plan | Scope |
 |------|-------|

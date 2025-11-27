@@ -30,9 +30,9 @@ A **channel** is a named coordination point. Channels have simple semantics:
 - **Latched**: Once signaled, the channel stays signaled (late waiters get the value immediately)
 - **Broadcast**: Multiple agents can wait on the same channel
 
-Channel state is stored as files in `.air/channels/`:
+Channel state is stored as files in `~/.air/<project>/channels/`:
 ```
-.air/channels/
+~/.air/<project>/channels/
 ├── core-ready.json
 ├── strings-ready.json
 └── done/
@@ -47,7 +47,7 @@ When an agent signals a channel, it writes:
 {
   "sha": "abc12345",
   "branch": "air/agent-name",
-  "worktree": "/absolute/path/to/.air/worktrees/agent-name",
+  "worktree": "/home/user/.air/project/worktrees/agent-name",
   "agent": "agent-name",
   "timestamp": "2025-01-15T10:30:00Z"
 }
@@ -132,7 +132,7 @@ air agent done                  # Signal completion (done/<agent-id> channel)
 
 #### `air agent wait <channel>`
 
-- Blocks (polls) until `.air/channels/<channel>.json` exists
+- Blocks (polls) until `~/.air/<project>/channels/<channel>.json` exists
 - Prints payload JSON to stdout on success
 - Exit code 0 on success
 
@@ -140,13 +140,13 @@ air agent done                  # Signal completion (done/<agent-id> channel)
 
 - Requires `AIR_AGENT_ID` and `AIR_WORKTREE` environment variables
 - Captures current HEAD SHA from worktree
-- Creates `.air/channels/<channel>.json` with payload
+- Creates `~/.air/<project>/channels/<channel>.json` with payload
 - Fails if channel already signaled (single-signal semantics)
 - Exit code 0 on success, non-zero if already signaled
 
 #### `air agent merge <channel>`
 
-- Reads payload from `.air/channels/<channel>.json`
+- Reads payload from `~/.air/<project>/channels/<channel>.json`
 - Merges the source branch into current worktree (includes transitive dependencies)
 - Fails if merge has conflicts (user intervention required)
 - Exit code 0 on success, non-zero on conflict
@@ -165,16 +165,16 @@ Set by `air run` for each agent:
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `AIR_AGENT_ID` | Plan/agent name | `strings` |
-| `AIR_WORKTREE` | Absolute path to agent's worktree | `/path/to/.air/worktrees/strings` |
+| `AIR_WORKTREE` | Absolute path to agent's worktree | `~/.air/project/worktrees/strings` |
 | `AIR_PROJECT_ROOT` | Absolute path to main project | `/path/to/project` |
-| `AIR_CHANNELS_DIR` | Path to channels directory | `/path/to/project/.air/channels` |
+| `AIR_CHANNELS_DIR` | Path to channels directory | `~/.air/project/channels` |
 
 ---
 
 ## Directory Structure
 
 ```
-.air/
+~/.air/<project>/
 ├── context.md              # Agent context (injected to all agents)
 ├── plans/
 │   ├── core.md
