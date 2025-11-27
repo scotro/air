@@ -107,6 +107,9 @@ func runRun(cmd *cobra.Command, args []string) error {
 	// Language-agnostic allowed tools: air commands, read-only git, info gathering
 	allowedTools := `--allowedTools "Bash(air:*) Bash(git status:*) Bash(git log:*) Bash(git diff:*) Bash(git branch:*) Bash(git merge-tree:*) Bash(mkdir:*) Bash(ls:*) Bash(find:*) Bash(cat:*) Bash(head:*) Bash(tail:*) Bash(wc:*)"`
 
+	// Settings: disable co-authored-by to keep commits clean
+	settings := `--settings '{"includeCoAuthoredBy": false}'`
+
 	// Create worktrees for each plan
 	for _, name := range plans {
 		wtPath := filepath.Join(worktreesDir, name)
@@ -155,8 +158,8 @@ export AIR_WORKTREE="%s"
 export AIR_PROJECT_ROOT="%s"
 export AIR_CHANNELS_DIR="%s"
 cd "$AIR_WORKTREE"
-exec claude %s %s --append-system-prompt "$(cat %s/context)" "$(cat %s/assignment)"
-`, name, wtPath, projectRoot, channelsDir, permFlag, allowedTools, agentDir, agentDir)
+exec claude %s %s %s --append-system-prompt "$(cat %s/context)" "$(cat %s/assignment)"
+`, name, wtPath, projectRoot, channelsDir, permFlag, allowedTools, settings, agentDir, agentDir)
 
 		scriptPath := filepath.Join(agentDir, "launch.sh")
 		if err := os.WriteFile(scriptPath, []byte(launcherScript), 0755); err != nil {

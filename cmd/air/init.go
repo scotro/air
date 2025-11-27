@@ -107,11 +107,11 @@ If your plan includes a **Dependencies** section, you must coordinate with other
 
 **Waiting for another agent:**
 ` + "```" + `bash
-air agent wait <channel-name>    # Blocks until the channel is signaled
+air agent wait <channel-name>    # Blocks until the channel is signaled (use 600000ms timeout)
 air agent merge <channel>        # Merges the dependency branch into your worktree
 ` + "```" + `
 
-**Note:** ` + "`" + `air agent wait` + "`" + ` may timeout after 5 minutes. If it does, simply run it again. Keep retrying until the channel is signaled.
+**Important:** When running ` + "`" + `air agent wait` + "`" + `, use a 10-minute timeout (600000ms). If it times out, simply run it again. Keep retrying until the channel is signaled - the other agent may still be working.
 
 **Signaling other agents:**
 ` + "```" + `bash

@@ -577,6 +577,66 @@ func TestVersion_ShowsVersion(t *testing.T) {
 }
 
 // ============================================================================
+// air integrate tests
+// ============================================================================
+
+func TestIntegrate_FailsIfNotInitialized(t *testing.T) {
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
+
+	_, err := env.run(t, nil, "integrate")
+	if err == nil {
+		t.Error("expected error when not initialized")
+	}
+}
+
+func TestIntegrate_CommandArgsAreCorrectlyStructured(t *testing.T) {
+	t.Parallel()
+
+	cmd := buildIntegrateCommand("test prompt")
+	args := cmd.Args
+
+	// args[0] is the command itself ("claude")
+	// Verify flags and values are separate arguments
+
+	// Find --allowedTools flag
+	foundAllowedTools := false
+	for i, arg := range args {
+		if arg == "--allowedTools" {
+			foundAllowedTools = true
+			// Next arg should be the value, not start with "--"
+			if i+1 >= len(args) {
+				t.Error("--allowedTools has no value")
+			} else if strings.HasPrefix(args[i+1], "--") {
+				t.Error("--allowedTools value is missing (next arg is a flag)")
+			}
+		}
+	}
+
+	if !foundAllowedTools {
+		t.Error("--allowedTools flag not found in command args")
+	}
+
+	// Same check for --append-system-prompt
+	foundAppend := false
+	for i, arg := range args {
+		if arg == "--append-system-prompt" {
+			foundAppend = true
+			if i+1 >= len(args) {
+				t.Error("--append-system-prompt has no value")
+			} else if strings.HasPrefix(args[i+1], "--") {
+				t.Error("--append-system-prompt value is missing")
+			}
+		}
+	}
+
+	if !foundAppend {
+		t.Error("--append-system-prompt flag not found")
+	}
+}
+
+// ============================================================================
 // Integration test
 // ============================================================================
 

@@ -1,12 +1,12 @@
 # Tutorial: Build a Redis Clone with Air
 
-Build a working toy Redis server in ~1 hour using parallel AI agents.
+Build a working toy Redis server in 30 minutes using concurrent AI agents.
 
 ## What You'll Build
 
 A Go implementation of Redis that supports:
-- `SET key value` / `GET key`
-- `LPUSH`, `RPUSH`, `LRANGE` for lists
+- `SET key value` / `GET key` / `DEL key`
+- `INCR`, `DECR` for counters
 - `HSET`, `HGET`, `HGETALL` for hashes
 - `EXPIRE`, `TTL` for key expiration
 
@@ -20,27 +20,9 @@ A Go implementation of Redis that supports:
 ## 1. Create Your Project
 
 ```bash
-mkdir mini-redis && cd mini-redis
-go mod init mini-redis
+mkdir air-tutorial && cd air-tutorial
 git init
-```
-
-Before parallelizing work, establish your project foundation. Create a minimal `main.go`:
-
-```go
-// main.go
-package main
-
-func main() {
-	// TODO: start server
-}
-```
-
-Commit the foundation:
-
-```bash
-git add .
-git commit -m "Initial project structure"
+git commit --allow-empty -m "Initial commit"
 ```
 
 ## 2. Initialize Air
@@ -49,7 +31,28 @@ git commit -m "Initial project structure"
 air init
 ```
 
-This creates `~/.air/mini-redis/` with context for agent coordination.
+This creates `~/.air/air-tutorial/` with context for agent coordination.
+
+**Optional but recommended:** Add permissions for Go tooling so agents can build and test without prompts:
+
+```bash
+mkdir -p .claude
+cat > .claude/settings.json << 'EOF'
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build:*)",
+      "Bash(go test:*)",
+      "Bash(go vet:*)",
+      "Bash(go fmt:*)",
+      "Bash(go mod:*)",
+      "Bash(go run:*)"
+    ]
+  }
+}
+EOF
+git add .claude && git commit -m "Add Claude permissions for Go tooling"
+```
 
 ## 3. Plan the Work
 
@@ -62,25 +65,19 @@ Claude will ask what you want to build. Describe the Redis clone:
 > I want to build a minimal Redis clone in Go. It should:
 > - Listen on port 6379 using the RESP protocol
 > - Support string commands: SET, GET, DEL
-> - Support list commands: LPUSH, RPUSH, LRANGE
+> - Support counter commands: INCR, DECR
 > - Support hash commands: HSET, HGET, HGETALL
 > - Support TTL: EXPIRE, TTL commands with background expiration
-> - Be safe for concurrent access
+> - Support safe high-throughput concurrency
+> - Include a Makefile for easy build and run
 
-Claude will decompose this into 3-4 parallel plans and write them to `~/.air/mini-redis/plans/`. Typical decomposition:
-
-| Plan | Scope |
-|------|-------|
-| `core` | RESP parser, TCP server, main.go |
-| `strings` | GET/SET/DEL with thread-safe storage |
-| `collections` | List and hash data structures |
-| `ttl` | EXPIRE/TTL commands, background reaper |
+Claude will decompose this into several parallel plans and write them to `~/.air/air-tutorial/plans/`. For a real project, you'd want to spend most of your time here, ensuring high quality plans.
 
 Review the plans:
 
 ```bash
 air plan list
-air plan show core
+air plan show <name>
 ```
 
 ## 4. Launch the Agents
@@ -90,19 +87,25 @@ air run all
 ```
 
 This creates isolated git worktrees and launches Claude agents in tmux:
-- Each agent works in its own branch (`air/core`, `air/strings`, etc.)
+- Each agent works in its own branch (e.g. `air/core`, `air/strings`, etc.)
 - Agents auto-accept file edits (use `--no-auto-accept` for manual approval)
 - A `dash` window is available for running commands yourself
 
 **tmux basics:**
+- `Ctrl+b w` - view all windows
 - `Ctrl+b n` - next window
 - `Ctrl+b p` - previous window
+- `Ctrl+b 0-9` - go to a specific window
 - `Ctrl+b d` - detach (agents keep running)
 - `tmux attach -t air` - reattach
 
+**First launch:** Each agent window will prompt for initial approval. Use `Ctrl+b n` to cycle through windows and approve each agent to start working. This only happens once per session.
+
 ## 5. Monitor Progress
 
-Watch the agents work. They'll signal when done:
+Watch the agents work. You will need to monitor agents for permission requests. To streamline things, consider adding project-level permissions for safe tool calls.
+
+Agents will signal when done:
 
 ```
 DONE: Implemented RESP parser and TCP server. Tests passing.
@@ -118,34 +121,32 @@ air status
 
 ## 6. Integrate the Work
 
-Once agents are done, detach from tmux (`Ctrl+b d`) and run:
+Once agents are done, exit or detach from tmux (`Ctrl+b d`).
+
+You should be on your main, working copy of `air-tutorial`. To integrate all of the work that the agents have completed, run:
 
 ```bash
 air integrate
 ```
 
-Claude helps merge each branch:
+Claude helps merge each branch.
 
-```bash
-# Typical flow for each branch:
-git merge air/core --no-ff -m "Merge core: RESP parser and server"
-git merge air/strings --no-ff -m "Merge strings: GET/SET/DEL commands"
-git merge air/collections --no-ff -m "Merge collections: lists and hashes"
-git merge air/ttl --no-ff -m "Merge ttl: expiration support"
-```
+With a real project, you'll want to ensure you are on an integration or feature branch before running this command.
 
-Run tests after each merge to catch conflicts early.
+## 7. Test and Iterate
 
-## 7. Test Your Redis
+Test your implementation.
+
+HINT: Ask Claude to give you some commands to test.
 
 Build and run:
 
 ```bash
-go build -o mini-redis .
-./mini-redis
+make build
+make run
 ```
 
-In another terminal, use `redis-cli` (or `nc`):
+In another terminal, test with `redis-cli`:
 
 ```bash
 redis-cli -p 6379
@@ -153,17 +154,30 @@ redis-cli -p 6379
 OK
 > GET hello
 "world"
-> EXPIRE hello 10
-(integer) 1
-> TTL hello
-(integer) 9
-> LPUSH mylist a b c
-(integer) 3
-> LRANGE mylist 0 -1
-1) "c"
-2) "b"
-3) "a"
+> SET counter 10
+OK
+> INCR counter
+(integer) 11
+> DECR counter
+(integer) 10
+> HSET user:1 name Alice age 30
+(integer) 2
+> HGETALL user:1
+1) "name"
+2) "Alice"
+3) "age"
+4) "30"
 ```
+
+**If something doesn't work:**
+
+Run `claude` in your project directory and describe the issue:
+
+```
+> INCR on a non-numeric key is crashing - investigate and fix
+```
+
+This iterative debugging is a normal part of AI-assisted development.
 
 ## 8. Clean Up
 
@@ -183,7 +197,6 @@ Removes worktrees and deletes the `air/*` branches.
 ## What's Next?
 
 Try extending your Redis clone:
-- Add `INCR`/`DECR` commands
 - Implement pub/sub with `SUBSCRIBE`/`PUBLISH`
 - Add persistence with RDB snapshots
 
