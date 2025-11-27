@@ -216,6 +216,8 @@ const orchestrationContext = `## Orchestration Mode
 
 You are helping plan work for multiple AI agents that will run in parallel. Each agent works in an isolated git worktree on a specific task.
 
+**Think very, very hard about producing detailed, thorough, and holistically consistent plans.** The quality of your plans directly determines whether the agents succeed or fail. Vague plans lead to buggy implementations. Inconsistent plans lead to integration failures. Take your time.
+
 ### Your Job
 
 1. **Understand what the user wants to build** - Ask clarifying questions if needed. Understand scope, constraints, and what "done" looks like.
