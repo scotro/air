@@ -1,15 +1,14 @@
 # Tutorial: Build a Redis Clone with Air
 
-Build a working toy Redis server in ~1 hour using parallel AI agents.
+Build a working toy Redis server in 30 minutes using concurrent AI agents.
 
 ## What You'll Build
 
 A Go implementation of Redis that supports:
-- `SET key value` / `GET key`
-- `LPUSH`, `RPUSH`, `LRANGE` for lists
+- `SET key value` / `GET key` / `DEL key`
+- `INCR`, `DECR` for counters
 - `HSET`, `HGET`, `HGETALL` for hashes
 - `EXPIRE`, `TTL` for key expiration
-- Persistence to handle server failure
 
 ## Prerequisites
 
@@ -45,11 +44,11 @@ Claude will ask what you want to build. Describe the Redis clone:
 > I want to build a minimal Redis clone in Go. It should:
 > - Listen on port 6379 using the RESP protocol
 > - Support string commands: SET, GET, DEL
-> - Support list commands: LPUSH, RPUSH, LRANGE
+> - Support counter commands: INCR, DECR
 > - Support hash commands: HSET, HGET, HGETALL
 > - Support TTL: EXPIRE, TTL commands with background expiration
-> - Support lightweight persistence
-> - Be safe for concurrent access
+> - Support safe high-throughput concurrency
+> - Include a Makefile for easy build and run
 
 Claude will decompose this into several parallel plans and write them to `~/.air/air-tutorial/plans/`. For a real project, you'd want to spend most of your time here, ensuring high quality plans.
 
@@ -72,8 +71,10 @@ This creates isolated git worktrees and launches Claude agents in tmux:
 - A `dash` window is available for running commands yourself
 
 **tmux basics:**
+- `Ctrl+b w` - view all windows
 - `Ctrl+b n` - next window
 - `Ctrl+b p` - previous window
+- `Ctrl+b 0-9` - go to a specific window
 - `Ctrl+b d` - detach (agents keep running)
 - `tmux attach -t air` - reattach
 
@@ -109,16 +110,18 @@ Claude helps merge each branch.
 
 With a real project, you'll want to ensure you are on an integration or feature branch before running this command.
 
-## 7. Test Your Redis
+## 7. Test and Iterate
+
+AI-generated code may have bugs - that's normal. Test your implementation and fix issues as needed.
 
 Build and run:
 
 ```bash
-go build -o air-tutorial .
-./air-tutorial
+make build
+make run
 ```
 
-In another terminal, use `redis-cli` (or `nc`):
+In another terminal, test with `redis-cli`:
 
 ```bash
 redis-cli -p 6379
@@ -126,17 +129,30 @@ redis-cli -p 6379
 OK
 > GET hello
 "world"
-> EXPIRE hello 10
-(integer) 1
-> TTL hello
-(integer) 9
-> LPUSH mylist a b c
-(integer) 3
-> LRANGE mylist 0 -1
-1) "c"
-2) "b"
-3) "a"
+> SET counter 10
+OK
+> INCR counter
+(integer) 11
+> DECR counter
+(integer) 10
+> HSET user:1 name Alice age 30
+(integer) 2
+> HGETALL user:1
+1) "name"
+2) "Alice"
+3) "age"
+4) "30"
 ```
+
+**If something doesn't work:**
+
+Run `claude` in your project directory and describe the issue:
+
+```
+> INCR on a non-numeric key is crashing - investigate and fix
+```
+
+This iterative debugging is a normal part of AI-assisted development.
 
 ## 8. Clean Up
 
@@ -156,7 +172,6 @@ Removes worktrees and deletes the `air/*` branches.
 ## What's Next?
 
 Try extending your Redis clone:
-- Add `INCR`/`DECR` commands
 - Implement pub/sub with `SUBSCRIBE`/`PUBLISH`
 - Add persistence with RDB snapshots
 

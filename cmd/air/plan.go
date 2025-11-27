@@ -266,6 +266,18 @@ You are helping plan work for multiple AI agents that will run in parallel. Each
 [Any additional context]
 ` + "```" + `
 
+### Acceptance Criteria Guidelines
+
+Acceptance criteria MUST be specific and testable. For each command/feature:
+- Include at least one concrete test case with expected input/output
+- Specify edge cases (empty input, missing keys, etc.)
+- Require a working smoke test via the actual interface (e.g., redis-cli for Redis)
+
+**Examples:**
+- Bad: ` + "`" + `- [ ] GET command works` + "`" + `
+- Good: ` + "`" + `- [ ] GET existing key returns value: GET foo → "bar" after SET foo bar` + "`" + `
+- Good: ` + "`" + `- [ ] GET missing key returns nil: GET nonexistent → (nil)` + "`" + `
+
 ### Concurrent Plans (with Dependencies)
 
 When one plan MUST wait for another to complete some work first, add a **Dependencies** section.
