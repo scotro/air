@@ -1,4 +1,4 @@
-# AIR - AI Runner
+# Air - AI Runner
 
 Orchestrate multiple Claude Code agents working in parallel on decomposed tasks.
 

@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-AIR (AI Runner) is a Go CLI tool that orchestrates multiple Claude Code agents working in parallel on decomposed tasks using git worktrees.
+Air (AI Runner) is a Go CLI tool that orchestrates multiple Claude Code agents working in parallel on decomposed tasks using git worktrees.
 
 ## Commands
 
