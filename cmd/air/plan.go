@@ -291,10 +291,17 @@ When one plan MUST wait for another to complete some work first, add a **Depende
 ` + "```" + `
 
 **Design principles for concurrent plans:**
+- **Prefer independent plans** - parallel plans with no dependencies are simpler and safer
+- **Complete the chain** - CRITICAL: every channel that appears in "Waits on" MUST have exactly one plan that "Signals" it. If plan B waits on ` + "`" + `setup-complete` + "`" + `, plan A MUST have a Dependencies section that signals ` + "`" + `setup-complete` + "`" + `. Incomplete chains cause agents to wait forever.
 - **Minimize integration points** - fewer signals = fewer conflicts
 - **Non-overlapping files** - agents consuming the same channel must work on different files
 - **Signal late** - only signal after committing stable, tested code
 - **Name channels clearly** - use descriptive names like ` + "`" + `core-ready` + "`" + `, ` + "`" + `auth-complete` + "`" + `
+
+**Before finalizing plans, verify the dependency chain is complete:**
+1. List all channels that appear in any "Waits on" section
+2. For each channel, confirm exactly one plan has it in "Signals"
+3. If a channel has no signaler, add a Dependencies section to the appropriate plan
 
 ### After planning
 
