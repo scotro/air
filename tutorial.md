@@ -20,27 +20,9 @@ A Go implementation of Redis that supports:
 ## 1. Create Your Project
 
 ```bash
-mkdir mini-redis && cd mini-redis
-go mod init mini-redis
+mkdir air-tutorial && cd air-tutorial
 git init
-```
-
-Before parallelizing work, establish your project foundation. Create a minimal `main.go`:
-
-```go
-// main.go
-package main
-
-func main() {
-	// TODO: start server
-}
-```
-
-Commit the foundation:
-
-```bash
-git add .
-git commit -m "Initial project structure"
+git commit --allow-empty -m "Initial commit"
 ```
 
 ## 2. Initialize Air
@@ -49,7 +31,7 @@ git commit -m "Initial project structure"
 air init
 ```
 
-This creates `~/.air/mini-redis/` with context for agent coordination.
+This creates `~/.air/air-tutorial/` with context for agent coordination.
 
 ## 3. Plan the Work
 
@@ -67,7 +49,7 @@ Claude will ask what you want to build. Describe the Redis clone:
 > - Support TTL: EXPIRE, TTL commands with background expiration
 > - Be safe for concurrent access
 
-Claude will decompose this into 3-4 parallel plans and write them to `~/.air/mini-redis/plans/`. Typical decomposition:
+Claude will decompose this into 3-4 parallel plans and write them to `~/.air/air-tutorial/plans/`. Typical decomposition:
 
 | Plan | Scope |
 |------|-------|
@@ -141,8 +123,8 @@ Run tests after each merge to catch conflicts early.
 Build and run:
 
 ```bash
-go build -o mini-redis .
-./mini-redis
+go build -o air-tutorial .
+./air-tutorial
 ```
 
 In another terminal, use `redis-cli` (or `nc`):
