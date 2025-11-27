@@ -9,6 +9,7 @@ A Go implementation of Redis that supports:
 - `LPUSH`, `RPUSH`, `LRANGE` for lists
 - `HSET`, `HGET`, `HGETALL` for hashes
 - `EXPIRE`, `TTL` for key expiration
+- Persistence
 
 ## Prerequisites
 
@@ -48,21 +49,15 @@ Claude will ask what you want to build. Describe the Redis clone:
 > - Support hash commands: HSET, HGET, HGETALL
 > - Support TTL: EXPIRE, TTL commands with background expiration
 > - Be safe for concurrent access
+> - Support lightweight persistence
 
-Claude will decompose this into 3-4 parallel plans and write them to `~/.air/air-tutorial/plans/`. Typical decomposition:
-
-| Plan | Scope |
-|------|-------|
-| `core` | RESP parser, TCP server, main.go |
-| `strings` | GET/SET/DEL with thread-safe storage |
-| `collections` | List and hash data structures |
-| `ttl` | EXPIRE/TTL commands, background reaper |
+Claude will decompose this into several parallel plans and write them to `~/.air/air-tutorial/plans/`.
 
 Review the plans:
 
 ```bash
 air plan list
-air plan show core
+air plan show <name>
 ```
 
 ## 4. Launch the Agents
@@ -72,7 +67,7 @@ air run all
 ```
 
 This creates isolated git worktrees and launches Claude agents in tmux:
-- Each agent works in its own branch (`air/core`, `air/strings`, etc.)
+- Each agent works in its own branch (e.g. `air/core`, `air/strings`, etc.)
 - Agents auto-accept file edits (use `--no-auto-accept` for manual approval)
 - A `dash` window is available for running commands yourself
 
@@ -84,7 +79,9 @@ This creates isolated git worktrees and launches Claude agents in tmux:
 
 ## 5. Monitor Progress
 
-Watch the agents work. They'll signal when done:
+Watch the agents work. You will need to monitor agents for permission requests. To streamline things, consider adding project-level permissions for safe tool calls.
+
+Agents will signal when done:
 
 ```
 DONE: Implemented RESP parser and TCP server. Tests passing.
