@@ -99,6 +99,8 @@ This creates isolated git worktrees and launches Claude agents in tmux:
 - `Ctrl+b d` - detach (agents keep running)
 - `tmux attach -t air` - reattach
 
+**First launch:** Each agent window will prompt for initial approval. Use `Ctrl+b n` to cycle through windows and approve each agent to start working. This only happens once per session.
+
 ## 5. Monitor Progress
 
 Watch the agents work. You will need to monitor agents for permission requests. To streamline things, consider adding project-level permissions for safe tool calls.
