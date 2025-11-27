@@ -223,9 +223,7 @@ You are helping plan work for multiple AI agents that will run in parallel. Each
    - Minimal overlap (agents won't create merge conflicts)
    - Testable independently (each task has clear acceptance criteria)
 
-   **New projects:** If the project lacks foundational setup (e.g., no main.go, no package structure), identify this as a prerequisite. Either:
-   - Tell the user to create minimal boilerplate first, OR
-   - Create a single "setup" plan that must run before the parallel plans
+   **New projects:** If the project lacks foundational setup (e.g., no main.go, no package structure), create a "setup" plan that runs first. Other plans should depend on it via a channel like ` + "`" + `setup-complete` + "`" + `. This prevents conflicts from multiple agents trying to create foundational files.
 
 3. **Create plans** - Write plan files to ` + "`" + `.air/plans/<name>.md` + "`" + ` for each task.
 
@@ -296,5 +294,5 @@ When one plan MUST wait for another to complete some work first, add a **Depende
 1. Use the Write tool to create each plan file in ` + "`" + `.air/plans/<name>.md` + "`" + `
 2. Summarize what each agent will do
 3. If plans have dependencies, explain the dependency graph to the user
-4. Tell the user to run: ` + "`" + `air run <name1> <name2> ...` + "`" + `
+4. Tell the user: "Exit Claude Code, then run: ` + "`" + `air run <name1> <name2> ...` + "`" + `"
 `
