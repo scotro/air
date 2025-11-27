@@ -22,7 +22,8 @@ cmd/air/           # CLI commands (cobra)
 ├── run.go         # air run
 ├── status.go      # air status
 ├── integrate.go   # air integrate
-└── clean.go       # air clean
+├── clean.go       # air clean
+└── agent.go       # air agent (coordination commands)
 internal/          # (future) shared packages
 ```
 
@@ -32,6 +33,7 @@ internal/          # (future) shared packages
 - **Context**: Workflow instructions in `.air/context.md`, injected via `--append-system-prompt`
 - **Worktrees**: Isolated git worktrees in `.air/worktrees/` for parallel work
 - **Branches**: Named `air/<plan-name>`
+- **Channels**: Coordination points in `.air/channels/` for concurrent plans with dependencies
 
 ## Design Principles
 

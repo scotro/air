@@ -94,6 +94,7 @@ air clean <name>      # Remove specific worktree
 .air/               # Entire directory is gitignored
 ├── context.md      # Workflow instructions (injected to all agents)
 ├── plans/          # Plan definitions
+├── channels/       # Coordination signals for concurrent plans
 └── worktrees/      # Git worktrees for each agent
 ```
 
