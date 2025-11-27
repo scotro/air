@@ -137,6 +137,8 @@ air agent wait <channel-name>    # Blocks until the channel is signaled
 air agent merge <channel>        # Merges the dependency branch into your worktree
 ` + "```" + `
 
+**Note:** ` + "`" + `air agent wait` + "`" + ` may timeout after 5 minutes. If it does, simply run it again. Keep retrying until the channel is signaled.
+
 **Signaling other agents:**
 ` + "```" + `bash
 air agent signal <channel-name>  # Signals the channel with your current commit

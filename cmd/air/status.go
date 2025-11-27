@@ -102,13 +102,13 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		if isDone {
 			statusIcon = "✓"
 			statusText = "done"
-		} else if isRunning {
+		} else {
+			// Show all non-done agents as "running" - we can't reliably detect
+			// if an agent is waiting for user input vs actively working
 			statusIcon = "●"
 			statusText = "running"
-		} else {
-			statusIcon = "○"
-			statusText = "idle"
 		}
+		_ = isRunning // still used for potential future features
 
 		// Build info line
 		info := lastCommit

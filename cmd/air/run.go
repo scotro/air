@@ -101,11 +101,14 @@ func runRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create channels directory: %w", err)
 	}
 
-	// Permission flag for claude
+	// Permission and allowed tools flags for claude
 	permFlag := ""
 	if !noAutoAccept {
 		permFlag = "--permission-mode acceptEdits"
 	}
+
+	// Language-agnostic allowed tools: air commands, read-only git, info gathering
+	allowedTools := `--allowedTools "Bash(air:*) Bash(git status:*) Bash(git log:*) Bash(git diff:*) Bash(git branch:*) Bash(ls:*) Bash(find:*) Bash(cat:*) Bash(head:*) Bash(tail:*) Bash(wc:*)"`
 
 	// Create worktrees for each plan
 	for _, name := range plans {
@@ -153,8 +156,8 @@ export AIR_AGENT_ID="%s"
 export AIR_WORKTREE="%s"
 export AIR_PROJECT_ROOT="%s"
 export AIR_CHANNELS_DIR="%s"
-exec claude %s --append-system-prompt "$(cat .air/.context)" "$(cat .air/.assignment)"
-`, name, wtAbsPath, projectRoot, channelsDir, permFlag)
+exec claude %s %s --append-system-prompt "$(cat .air/.context)" "$(cat .air/.assignment)"
+`, name, wtAbsPath, projectRoot, channelsDir, permFlag, allowedTools)
 
 		scriptPath := filepath.Join(wtAirDir, "launch.sh")
 		if err := os.WriteFile(scriptPath, []byte(launcherScript), 0755); err != nil {
