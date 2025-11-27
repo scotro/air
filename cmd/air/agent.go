@@ -14,6 +14,7 @@ import (
 // ChannelPayload represents the data written to a channel file when signaled
 type ChannelPayload struct {
 	SHA       string    `json:"sha"`
+	Branch    string    `json:"branch"`
 	Worktree  string    `json:"worktree"`
 	Agent     string    `json:"agent"`
 	Timestamp time.Time `json:"timestamp"`
@@ -41,12 +42,12 @@ var agentWaitCmd = &cobra.Command{
 	RunE:  runAgentWait,
 }
 
-var agentCherryPickCmd = &cobra.Command{
-	Use:   "cherry-pick <channel>",
-	Short: "Cherry-pick the commit from a signaled channel",
-	Long:  `Reads the commit SHA from a signaled channel and cherry-picks it into the current worktree.`,
+var agentMergeCmd = &cobra.Command{
+	Use:   "merge <channel>",
+	Short: "Merge changes from a signaled channel's branch",
+	Long:  `Reads the branch from a signaled channel and merges it into the current worktree. This brings in all commits from the dependency, including any transitive dependencies.`,
 	Args:  cobra.ExactArgs(1),
-	RunE:  runAgentCherryPick,
+	RunE:  runAgentMerge,
 }
 
 var agentDoneCmd = &cobra.Command{
@@ -60,7 +61,7 @@ var agentDoneCmd = &cobra.Command{
 func init() {
 	agentCmd.AddCommand(agentSignalCmd)
 	agentCmd.AddCommand(agentWaitCmd)
-	agentCmd.AddCommand(agentCherryPickCmd)
+	agentCmd.AddCommand(agentMergeCmd)
 	agentCmd.AddCommand(agentDoneCmd)
 }
 
@@ -158,6 +159,21 @@ func getCurrentSHA() (string, error) {
 	return sha, nil
 }
 
+// getCurrentBranch returns the current branch name
+func getCurrentBranch() (string, error) {
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get branch name: %w", err)
+	}
+	// Trim newline
+	branch := string(output)
+	if len(branch) > 0 && branch[len(branch)-1] == '\n' {
+		branch = branch[:len(branch)-1]
+	}
+	return branch, nil
+}
+
 func runAgentSignal(cmd *cobra.Command, args []string) error {
 	channel := args[0]
 
@@ -178,6 +194,12 @@ func runAgentSignal(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Get current branch name
+	branch, err := getCurrentBranch()
+	if err != nil {
+		return err
+	}
+
 	// Get worktree path
 	worktree := os.Getenv("AIR_WORKTREE")
 	if worktree == "" {
@@ -191,6 +213,7 @@ func runAgentSignal(cmd *cobra.Command, args []string) error {
 	// Build and write payload
 	payload := &ChannelPayload{
 		SHA:       sha,
+		Branch:    branch,
 		Worktree:  worktree,
 		Agent:     agentID,
 		Timestamp: time.Now().UTC(),
@@ -200,7 +223,7 @@ func runAgentSignal(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Signaled channel '%s' (sha: %s)\n", channel, sha[:8])
+	fmt.Printf("Signaled channel '%s' (branch: %s, sha: %s)\n", channel, branch, sha[:8])
 	return nil
 }
 
@@ -230,7 +253,7 @@ func runAgentWait(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runAgentCherryPick(cmd *cobra.Command, args []string) error {
+func runAgentMerge(cmd *cobra.Command, args []string) error {
 	channel := args[0]
 
 	// Read channel payload
@@ -242,18 +265,18 @@ func runAgentCherryPick(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Cherry-picking commit %s from %s...\n", payload.SHA[:8], payload.Agent)
+	fmt.Printf("Merging branch %s from %s...\n", payload.Branch, payload.Agent)
 
-	// Since worktrees share the same git object store, we can cherry-pick directly by SHA
-	cherryPickCmd := exec.Command("git", "cherry-pick", payload.SHA)
-	cherryPickCmd.Stdout = os.Stdout
-	cherryPickCmd.Stderr = os.Stderr
+	// Merge the branch - this brings in all commits including transitive dependencies
+	mergeCmd := exec.Command("git", "merge", payload.Branch, "--no-edit", "-m", fmt.Sprintf("Merge %s from %s", payload.Branch, payload.Agent))
+	mergeCmd.Stdout = os.Stdout
+	mergeCmd.Stderr = os.Stderr
 
-	if err := cherryPickCmd.Run(); err != nil {
-		return fmt.Errorf("cherry-pick failed (you may need to resolve conflicts manually): %w", err)
+	if err := mergeCmd.Run(); err != nil {
+		return fmt.Errorf("merge failed (you may need to resolve conflicts manually): %w", err)
 	}
 
-	fmt.Printf("Successfully cherry-picked commit %s\n", payload.SHA[:8])
+	fmt.Printf("Successfully merged branch %s\n", payload.Branch)
 	return nil
 }
 

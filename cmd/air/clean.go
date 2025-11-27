@@ -90,6 +90,25 @@ func runClean(cmd *cobra.Command, args []string) error {
 	// Prune worktrees
 	exec.Command("git", "worktree", "prune").Run()
 
+	// Clean up channels
+	channelsDir := filepath.Join(".air", "channels")
+	if len(args) == 0 {
+		// Cleaning all worktrees - remove entire channels directory
+		if err := os.RemoveAll(channelsDir); err != nil {
+			fmt.Printf("Warning: failed to remove channels directory: %v\n", err)
+		} else {
+			fmt.Println("Cleared channels directory")
+		}
+	} else {
+		// Cleaning specific worktrees - remove their done/<name>.json files
+		for _, name := range names {
+			doneFile := filepath.Join(channelsDir, "done", name+".json")
+			if err := os.Remove(doneFile); err == nil {
+				fmt.Printf("Removed done channel: %s\n", name)
+			}
+		}
+	}
+
 	// Archive plans
 	archivedDir := filepath.Join(".air", "plans", "archive")
 	if err := os.MkdirAll(archivedDir, 0755); err != nil {

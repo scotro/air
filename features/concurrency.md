@@ -46,6 +46,7 @@ When an agent signals a channel, it writes:
 ```json
 {
   "sha": "abc12345",
+  "branch": "air/agent-name",
   "worktree": "/absolute/path/to/.air/worktrees/agent-name",
   "agent": "agent-name",
   "timestamp": "2025-01-15T10:30:00Z"
@@ -57,7 +58,7 @@ When an agent signals a channel, it writes:
 An **integration point** is where one agent's work flows into another's:
 1. Producer agent commits work and signals a channel
 2. Consumer agent waits on the channel
-3. Consumer cherry-picks the commit into its worktree
+3. Consumer merges the branch into its worktree
 4. Consumer continues with its plan
 
 ### Done Channels
@@ -85,7 +86,7 @@ Plans may include an optional **Dependencies** section. Plans without this secti
 
 **Sequence:**
 1. Run `air agent wait core-ready` before beginning implementation
-2. Run `air agent cherry-pick core-ready` to pull in core module
+2. Run `air agent merge core-ready` to pull in core module
 3. Implement string commands
 4. Run `air agent signal strings-ready`
 5. Run `air agent done`
@@ -101,7 +102,7 @@ Plans may include an optional **Dependencies** section. Plans without this secti
 
 1. **Minimize integration points** - Each integration point is a potential conflict. Prefer independent work.
 2. **Non-overlapping files** - Agents consuming the same channel should work on disjoint file sets.
-3. **Early integration, late signaling** - Wait/cherry-pick early, signal late (after work is complete).
+3. **Early integration, late signaling** - Wait/merge early, signal late (after work is complete).
 
 ---
 
@@ -125,7 +126,7 @@ Scoped under `air agent` to distinguish from user commands:
 ```
 air agent wait <channel>        # Block until channel is signaled, print payload
 air agent signal <channel>      # Signal channel with current HEAD commit
-air agent cherry-pick <channel> # Cherry-pick commit from channel's source
+air agent merge <channel>       # Merge branch from channel's source
 air agent done                  # Signal completion (done/<agent-id> channel)
 ```
 
@@ -143,11 +144,11 @@ air agent done                  # Signal completion (done/<agent-id> channel)
 - Fails if channel already signaled (single-signal semantics)
 - Exit code 0 on success, non-zero if already signaled
 
-#### `air agent cherry-pick <channel>`
+#### `air agent merge <channel>`
 
 - Reads payload from `.air/channels/<channel>.json`
-- Cherry-picks the commit SHA from the source worktree into current worktree
-- Fails if cherry-pick has conflicts (user intervention required)
+- Merges the source branch into current worktree (includes transitive dependencies)
+- Fails if merge has conflicts (user intervention required)
 - Exit code 0 on success, non-zero on conflict
 
 #### `air agent done`
@@ -205,7 +206,7 @@ Add guidance for the planner on:
 Add guidance for agents on:
 - How to interpret the Dependencies section
 - When and how to use `air agent` commands
-- What to do on cherry-pick conflicts (signal BLOCKED)
+- What to do on merge conflicts (signal BLOCKED)
 
 ---
 
@@ -215,7 +216,7 @@ Add guidance for agents on:
 |----------|----------|
 | `wait` on non-existent channel | Block until signaled (or timeout?) |
 | `signal` on already-signaled channel | Error, exit non-zero |
-| `cherry-pick` conflict | Error, exit non-zero, agent should signal BLOCKED |
+| `merge` conflict | Error, exit non-zero, agent should signal BLOCKED |
 | Missing environment variables | Error with helpful message |
 
 ### Open Question: Timeout
@@ -278,5 +279,5 @@ Channels:
 
 - **Cycle detection**: Validate dependency graph before running
 - **Visualization**: Show dependency DAG in status
-- **Auto-retry**: Retry cherry-pick with merge strategy on conflict
+- **Auto-retry**: Retry merge with different strategy on conflict
 - **Partial ordering**: Run independent subgraphs in parallel automatically

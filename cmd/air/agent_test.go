@@ -280,10 +280,10 @@ func TestAgentDone_FailsWithoutAgentID(t *testing.T) {
 }
 
 // ============================================================================
-// air agent cherry-pick tests
+// air agent merge tests
 // ============================================================================
 
-func TestAgentCherryPick_FailsIfChannelNotSignaled(t *testing.T) {
+func TestAgentMerge_FailsIfChannelNotSignaled(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
@@ -292,14 +292,14 @@ func TestAgentCherryPick_FailsIfChannelNotSignaled(t *testing.T) {
 
 	_, err := runAirWithEnv(t, tmpDir, map[string]string{
 		"AIR_CHANNELS_DIR": channelsDir,
-	}, "agent", "cherry-pick", "nonexistent")
+	}, "agent", "merge", "nonexistent")
 
 	if err == nil {
 		t.Error("expected error for unsignaled channel")
 	}
 }
 
-func TestAgentCherryPick_AppliesCommitFromSameRepo(t *testing.T) {
+func TestAgentMerge_MergesBranchFromSameRepo(t *testing.T) {
 	// This tests the scenario where worktrees share the same git object store
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
@@ -307,7 +307,8 @@ func TestAgentCherryPick_AppliesCommitFromSameRepo(t *testing.T) {
 	channelsDir := filepath.Join(tmpDir, ".air", "channels")
 	os.MkdirAll(channelsDir, 0755)
 
-	// Create a commit in the main repo
+	// Create a feature branch with a commit
+	exec.Command("git", "-C", tmpDir, "checkout", "-b", "air/producer").Run()
 	testFile := filepath.Join(tmpDir, "new-feature.txt")
 	os.WriteFile(testFile, []byte("new feature content"), 0644)
 	exec.Command("git", "-C", tmpDir, "add", "new-feature.txt").Run()
@@ -318,17 +319,19 @@ func TestAgentCherryPick_AppliesCommitFromSameRepo(t *testing.T) {
 	shaOut, _ := shaCmd.Output()
 	sha := strings.TrimSpace(string(shaOut))
 
-	// Create a new branch (simulating another worktree)
-	exec.Command("git", "-C", tmpDir, "checkout", "-b", "consumer-branch", "HEAD~1").Run()
+	// Create a consumer branch from main (before the feature)
+	exec.Command("git", "-C", tmpDir, "checkout", "main").Run()
+	exec.Command("git", "-C", tmpDir, "checkout", "-b", "air/consumer").Run()
 
 	// Verify the file doesn't exist on this branch
 	if _, err := os.Stat(testFile); !os.IsNotExist(err) {
 		t.Fatal("test file should not exist on consumer branch")
 	}
 
-	// Create channel pointing to the commit
+	// Create channel pointing to the producer branch
 	payload := ChannelPayload{
 		SHA:       sha,
+		Branch:    "air/producer",
 		Worktree:  tmpDir,
 		Agent:     "producer",
 		Timestamp: time.Now(),
@@ -336,18 +339,18 @@ func TestAgentCherryPick_AppliesCommitFromSameRepo(t *testing.T) {
 	data, _ := json.MarshalIndent(payload, "", "  ")
 	os.WriteFile(filepath.Join(channelsDir, "feature-ready.json"), data, 0644)
 
-	// Cherry-pick the commit
+	// Merge the branch
 	out, err := runAirWithEnv(t, tmpDir, map[string]string{
 		"AIR_CHANNELS_DIR": channelsDir,
-	}, "agent", "cherry-pick", "feature-ready")
+	}, "agent", "merge", "feature-ready")
 
 	if err != nil {
-		t.Fatalf("cherry-pick failed: %v\n%s", err, out)
+		t.Fatalf("merge failed: %v\n%s", err, out)
 	}
 
 	// Verify the file now exists
 	if _, err := os.Stat(testFile); os.IsNotExist(err) {
-		t.Error("cherry-picked file should exist")
+		t.Error("merged file should exist")
 	}
 
 	// Verify content

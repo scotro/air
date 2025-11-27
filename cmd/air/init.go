@@ -134,7 +134,7 @@ If your plan includes a **Dependencies** section, you must coordinate with other
 **Waiting for another agent:**
 ` + "```" + `bash
 air agent wait <channel-name>    # Blocks until the channel is signaled
-air agent cherry-pick <channel>  # Applies the signaled commit to your worktree
+air agent merge <channel>        # Merges the dependency branch into your worktree
 ` + "```" + `
 
 **Signaling other agents:**
@@ -146,6 +146,6 @@ air agent done                   # Marks you as complete
 **Important:**
 - Follow the **Sequence** in your Dependencies section exactly
 - Always commit your changes BEFORE signaling
-- If ` + "`" + `cherry-pick` + "`" + ` fails with conflicts, signal BLOCKED and describe the conflict
+- If ` + "`" + `merge` + "`" + ` fails with conflicts, signal BLOCKED and describe the conflict
 - Run ` + "`" + `air agent done` + "`" + ` as your final action when all work is complete
 `

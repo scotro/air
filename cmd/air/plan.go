@@ -223,7 +223,12 @@ You are helping plan work for multiple AI agents that will run in parallel. Each
    - Minimal overlap (agents won't create merge conflicts)
    - Testable independently (each task has clear acceptance criteria)
 
-   **New projects:** If the project lacks foundational setup (e.g., no main.go, no package structure), create a "setup" plan that runs first. Other plans should depend on it via a channel like ` + "`" + `setup-complete` + "`" + `. This prevents conflicts from multiple agents trying to create foundational files.
+   **New/empty projects:** Always create a dedicated "setup" plan that runs first and completes before other agents start. The setup plan should ONLY create scaffolding:
+   - ` + "`" + `go.mod` + "`" + ` (or equivalent for other languages)
+   - Empty package directories
+   - Basic project structure
+
+   All other plans must depend on setup via ` + "`" + `setup-complete` + "`" + ` channel. Do NOT bundle feature work into the setup plan - keep it minimal so it completes quickly. This prevents conflicts from multiple agents trying to create foundational files like go.mod.
 
 3. **Create plans** - Write plan files to ` + "`" + `.air/plans/<name>.md` + "`" + ` for each task.
 
@@ -276,7 +281,7 @@ When one plan MUST wait for another to complete some work first, add a **Depende
 
 **Sequence:**
 1. Run ` + "`" + `air agent wait <channel>` + "`" + ` before starting dependent work
-2. Run ` + "`" + `air agent cherry-pick <channel>` + "`" + ` to pull in changes
+2. Run ` + "`" + `air agent merge <channel>` + "`" + ` to pull in changes
 3. Do implementation work
 4. Commit changes
 5. Run ` + "`" + `air agent signal <channel>` + "`" + ` to notify waiting agents
