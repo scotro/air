@@ -135,7 +135,9 @@ With a real project, you'll want to ensure you are on an integration or feature 
 
 ## 7. Test and Iterate
 
-AI-generated code may have bugs - that's normal. Test your implementation and fix issues as needed.
+Test your implementation.
+
+HINT: Ask Claude to give you some commands to test.
 
 Build and run:
 
