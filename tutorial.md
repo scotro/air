@@ -9,7 +9,7 @@ A Go implementation of Redis that supports:
 - `LPUSH`, `RPUSH`, `LRANGE` for lists
 - `HSET`, `HGET`, `HGETALL` for hashes
 - `EXPIRE`, `TTL` for key expiration
-- Persistence
+- Persistence to handle server failure
 
 ## Prerequisites
 
@@ -48,10 +48,10 @@ Claude will ask what you want to build. Describe the Redis clone:
 > - Support list commands: LPUSH, RPUSH, LRANGE
 > - Support hash commands: HSET, HGET, HGETALL
 > - Support TTL: EXPIRE, TTL commands with background expiration
-> - Be safe for concurrent access
 > - Support lightweight persistence
+> - Be safe for concurrent access
 
-Claude will decompose this into several parallel plans and write them to `~/.air/air-tutorial/plans/`.
+Claude will decompose this into several parallel plans and write them to `~/.air/air-tutorial/plans/`. For a real project, you'd want to spend most of your time here, ensuring high quality plans.
 
 Review the plans:
 
