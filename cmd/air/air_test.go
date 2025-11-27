@@ -93,7 +93,12 @@ func runAir(t *testing.T, dir string, args ...string) (string, error) {
 
 	cmd := exec.Command(testBinaryPath, args...)
 	cmd.Dir = dir
-	cmd.Env = os.Environ()
+	// Filter out AIR_* env vars to ensure tests have complete control
+	for _, e := range os.Environ() {
+		if !strings.HasPrefix(e, "AIR_") {
+			cmd.Env = append(cmd.Env, e)
+		}
+	}
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }

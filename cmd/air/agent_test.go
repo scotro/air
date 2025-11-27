@@ -160,8 +160,8 @@ func TestAgentWait_ReturnsImmediatelyIfChannelExists(t *testing.T) {
 		t.Fatalf("wait failed: %v\n%s", err, out)
 	}
 
-	// Should complete quickly (within 5 seconds - accounting for build/process overhead)
-	if time.Since(start) > 5*time.Second {
+	// Should complete quickly (under 1 second)
+	if time.Since(start) > 1*time.Second {
 		t.Error("wait took too long for pre-existing channel")
 	}
 
@@ -222,7 +222,7 @@ func TestAgentWait_BlocksUntilSignaled(t *testing.T) {
 		if !strings.Contains(waitOut, "delayed123") {
 			t.Error("wait output missing expected SHA")
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(2 * time.Second):
 		t.Fatal("wait did not complete after channel was signaled")
 	}
 }
