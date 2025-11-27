@@ -19,8 +19,8 @@ var statusCmd = &cobra.Command{
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
-	worktreesDir := filepath.Join(".air", "worktrees")
-	channelsDir := filepath.Join(".air", "channels")
+	worktreesDir := getWorktreesDir()
+	channelsDir := getChannelsDir()
 
 	entries, err := os.ReadDir(worktreesDir)
 	if err != nil {
@@ -102,13 +102,13 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		if isDone {
 			statusIcon = "✓"
 			statusText = "done"
-		} else if isRunning {
+		} else {
+			// Show all non-done agents as "running" - we can't reliably detect
+			// if an agent is waiting for user input vs actively working
 			statusIcon = "●"
 			statusText = "running"
-		} else {
-			statusIcon = "○"
-			statusText = "idle"
 		}
+		_ = isRunning // still used for potential future features
 
 		// Build info line
 		info := lastCommit
@@ -129,7 +129,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 }
 
 func showChannelStatus(doneAgents map[string]bool) error {
-	channelsDir := filepath.Join(".air", "channels")
+	channelsDir := getChannelsDir()
 
 	entries, err := os.ReadDir(channelsDir)
 	if err != nil {

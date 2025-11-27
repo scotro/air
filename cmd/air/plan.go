@@ -55,14 +55,13 @@ func init() {
 }
 
 func runPlan(cmd *cobra.Command, args []string) error {
-	// Check .air/ exists
-	if _, err := os.Stat(".air"); os.IsNotExist(err) {
+	// Check initialization
+	if !isInitialized() {
 		return fmt.Errorf("not initialized (run 'air init' first)")
 	}
 
 	// Read context
-	contextPath := filepath.Join(".air", "context.md")
-	context, err := os.ReadFile(contextPath)
+	context, err := os.ReadFile(getContextPath())
 	if err != nil {
 		return fmt.Errorf("failed to read context: %w", err)
 	}
@@ -85,11 +84,12 @@ func runPlanList(cmd *cobra.Command, args []string) error {
 	var plansDir string
 	var label string
 
+	basePlansDir := getPlansDir()
 	if listArchived {
-		plansDir = filepath.Join(".air", "plans", "archive")
+		plansDir = filepath.Join(basePlansDir, "archive")
 		label = "Archived Plans:"
 	} else {
-		plansDir = filepath.Join(".air", "plans")
+		plansDir = basePlansDir
 		label = "Plans:"
 	}
 
@@ -147,7 +147,7 @@ func runPlanList(cmd *cobra.Command, args []string) error {
 
 func runPlanShow(cmd *cobra.Command, args []string) error {
 	name := args[0]
-	planPath := filepath.Join(".air", "plans", name+".md")
+	planPath := filepath.Join(getPlansDir(), name+".md")
 
 	content, err := os.ReadFile(planPath)
 	if err != nil {
@@ -163,8 +163,9 @@ func runPlanShow(cmd *cobra.Command, args []string) error {
 
 func runPlanArchive(cmd *cobra.Command, args []string) error {
 	name := args[0]
-	srcPath := filepath.Join(".air", "plans", name+".md")
-	archiveDir := filepath.Join(".air", "plans", "archive")
+	plansDir := getPlansDir()
+	srcPath := filepath.Join(plansDir, name+".md")
+	archiveDir := filepath.Join(plansDir, "archive")
 	dstPath := filepath.Join(archiveDir, name+".md")
 
 	// Check source exists
@@ -188,8 +189,9 @@ func runPlanArchive(cmd *cobra.Command, args []string) error {
 
 func runPlanRestore(cmd *cobra.Command, args []string) error {
 	name := args[0]
-	srcPath := filepath.Join(".air", "plans", "archive", name+".md")
-	dstPath := filepath.Join(".air", "plans", name+".md")
+	plansDir := getPlansDir()
+	srcPath := filepath.Join(plansDir, "archive", name+".md")
+	dstPath := filepath.Join(plansDir, name+".md")
 
 	// Check source exists
 	if _, err := os.Stat(srcPath); os.IsNotExist(err) {
@@ -230,7 +232,7 @@ You are helping plan work for multiple AI agents that will run in parallel. Each
 
    All other plans must depend on setup via ` + "`" + `setup-complete` + "`" + ` channel. Do NOT bundle feature work into the setup plan - keep it minimal so it completes quickly. This prevents conflicts from multiple agents trying to create foundational files like go.mod.
 
-3. **Create plans** - Write plan files to ` + "`" + `.air/plans/<name>.md` + "`" + ` for each task.
+3. **Create plans** - Write plan files to ` + "`" + `~/.air/<project>/plans/<name>.md` + "`" + ` for each task (where ` + "`" + `<project>` + "`" + ` is the current directory name).
 
 4. **Provide launch command** - Tell the user exactly how to start the agents.
 
@@ -296,7 +298,7 @@ When one plan MUST wait for another to complete some work first, add a **Depende
 
 ### After planning
 
-1. Use the Write tool to create each plan file in ` + "`" + `.air/plans/<name>.md` + "`" + `
+1. Use the Write tool to create each plan file in ` + "`" + `~/.air/<project>/plans/<name>.md` + "`" + ` (where ` + "`" + `<project>` + "`" + ` is the current directory name)
 2. Summarize what each agent will do
 3. If plans have dependencies, explain the dependency graph to the user
 4. Tell the user: "Exit Claude Code, then run: ` + "`" + `air run <name1> <name2> ...` + "`" + `"

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -16,14 +15,13 @@ var integrateCmd = &cobra.Command{
 }
 
 func runIntegrate(cmd *cobra.Command, args []string) error {
-	// Check .air/ exists
-	if _, err := os.Stat(".air"); os.IsNotExist(err) {
+	// Check initialization
+	if !isInitialized() {
 		return fmt.Errorf("not initialized (run 'air init' first)")
 	}
 
 	// Read context
-	contextPath := filepath.Join(".air", "context.md")
-	context, err := os.ReadFile(contextPath)
+	context, err := os.ReadFile(getContextPath())
 	if err != nil {
 		return fmt.Errorf("failed to read context: %w", err)
 	}

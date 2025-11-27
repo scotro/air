@@ -8,21 +8,55 @@ import (
 	"testing"
 )
 
-// TestHelper sets up a temp git repo and returns cleanup function
+// testBinaryPath holds the path to the pre-built test binary.
+// Built once in TestMain to avoid rebuilding for every test.
+var testBinaryPath string
+
+func TestMain(m *testing.M) {
+	// Build the binary ONCE before any tests run.
+	// This is critical because tests manipulate HOME, which would
+	// invalidate Go's build cache ($HOME/.cache/go-build/).
+	binPath := filepath.Join(os.TempDir(), "air-test-binary")
+
+	buildCmd := exec.Command("go", "build", "-o", binPath, ".")
+	if out, err := buildCmd.CombinedOutput(); err != nil {
+		println("failed to build air:", err.Error())
+		println(string(out))
+		os.Exit(1)
+	}
+
+	testBinaryPath = binPath
+	os.Exit(m.Run())
+}
+
+// TestHelper sets up a temp git repo and a fake HOME directory, returns cleanup function
 func setupTestRepo(t *testing.T) (string, func()) {
 	t.Helper()
 
-	// Create temp directory
+	// Create temp directory for project
 	tmpDir, err := os.MkdirTemp("", "air-test-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
+
+	// Create temp directory for HOME (so we don't pollute real ~/.air/)
+	fakeHome, err := os.MkdirTemp("", "air-test-home-*")
+	if err != nil {
+		os.RemoveAll(tmpDir)
+		t.Fatalf("failed to create fake home: %v", err)
+	}
+
+	// Save original HOME
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", fakeHome)
 
 	// Initialize git repo with explicit main branch (ensures consistency across environments)
 	cmd := exec.Command("git", "init", "-b", "main")
 	cmd.Dir = tmpDir
 	if err := cmd.Run(); err != nil {
 		os.RemoveAll(tmpDir)
+		os.RemoveAll(fakeHome)
+		os.Setenv("HOME", origHome)
 		t.Fatalf("failed to init git repo: %v", err)
 	}
 
@@ -37,46 +71,45 @@ func setupTestRepo(t *testing.T) (string, func()) {
 	exec.Command("git", "-C", tmpDir, "commit", "-m", "Initial commit").Run()
 
 	cleanup := func() {
+		os.Setenv("HOME", origHome)
 		os.RemoveAll(tmpDir)
+		os.RemoveAll(fakeHome)
 	}
 
 	return tmpDir, cleanup
+}
+
+// getTestAirDir returns the air directory for a test project
+func getTestAirDir(t *testing.T, projectDir string) string {
+	t.Helper()
+	home := os.Getenv("HOME")
+	projectName := filepath.Base(projectDir)
+	return filepath.Join(home, ".air", projectName)
 }
 
 // runAir runs the air command in the given directory
 func runAir(t *testing.T, dir string, args ...string) (string, error) {
 	t.Helper()
 
-	// Build the binary if needed
-	binPath := filepath.Join(os.TempDir(), "air-test-binary")
-	buildCmd := exec.Command("go", "build", "-o", binPath, ".")
-	buildCmd.Dir = filepath.Join(mustGetwd(t), ".")
-	if out, err := buildCmd.CombinedOutput(); err != nil {
-		t.Fatalf("failed to build air: %v\n%s", err, out)
-	}
-
-	cmd := exec.Command(binPath, args...)
+	cmd := exec.Command(testBinaryPath, args...)
 	cmd.Dir = dir
+	// Filter out AIR_* env vars to ensure tests have complete control
+	for _, e := range os.Environ() {
+		if !strings.HasPrefix(e, "AIR_") {
+			cmd.Env = append(cmd.Env, e)
+		}
+	}
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }
 
-func mustGetwd(t *testing.T) string {
+// initProject runs air init (no gitignore commit needed anymore)
+func initProject(t *testing.T, dir string) {
 	t.Helper()
-	wd, err := os.Getwd()
+	out, err := runAir(t, dir, "init")
 	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
+		t.Fatalf("air init failed: %v\n%s", err, out)
 	}
-	return wd
-}
-
-// initAndCommit runs air init and commits the .gitignore change
-// (required for run tests since worktrees are created from committed state)
-func initAndCommit(t *testing.T, dir string) {
-	t.Helper()
-	runAir(t, dir, "init")
-	exec.Command("git", "-C", dir, "add", ".gitignore").Run()
-	exec.Command("git", "-C", dir, "commit", "-m", "Add .air/ to gitignore").Run()
 }
 
 // ============================================================================
@@ -92,22 +125,22 @@ func TestInit_CreatesAirDirectory(t *testing.T) {
 		t.Fatalf("air init failed: %v\n%s", err, out)
 	}
 
-	// Check .air/ exists
-	airDir := filepath.Join(tmpDir, ".air")
+	// Check ~/.air/<project>/ exists
+	airDir := getTestAirDir(t, tmpDir)
 	if _, err := os.Stat(airDir); os.IsNotExist(err) {
-		t.Error(".air/ directory was not created")
+		t.Errorf("air directory was not created at %s", airDir)
 	}
 
-	// Check .air/plans/ exists
+	// Check plans/ exists
 	plansDir := filepath.Join(airDir, "plans")
 	if _, err := os.Stat(plansDir); os.IsNotExist(err) {
-		t.Error(".air/plans/ directory was not created")
+		t.Error("plans/ directory was not created")
 	}
 
-	// Check .air/context.md exists
+	// Check context.md exists
 	contextFile := filepath.Join(airDir, "context.md")
 	if _, err := os.Stat(contextFile); os.IsNotExist(err) {
-		t.Error(".air/context.md was not created")
+		t.Error("context.md was not created")
 	}
 }
 
@@ -117,7 +150,8 @@ func TestInit_CreatesContextWithExpectedContent(t *testing.T) {
 
 	runAir(t, tmpDir, "init")
 
-	content, err := os.ReadFile(filepath.Join(tmpDir, ".air", "context.md"))
+	airDir := getTestAirDir(t, tmpDir)
+	content, err := os.ReadFile(filepath.Join(airDir, "context.md"))
 	if err != nil {
 		t.Fatalf("failed to read context.md: %v", err)
 	}
@@ -140,22 +174,6 @@ func TestInit_CreatesContextWithExpectedContent(t *testing.T) {
 	}
 }
 
-func TestInit_UpdatesGitignore(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
-
-	runAir(t, tmpDir, "init")
-
-	content, err := os.ReadFile(filepath.Join(tmpDir, ".gitignore"))
-	if err != nil {
-		t.Fatalf("failed to read .gitignore: %v", err)
-	}
-
-	if !strings.Contains(string(content), ".air/") {
-		t.Error(".gitignore does not contain .air/")
-	}
-}
-
 func TestInit_IsIdempotent(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
@@ -167,20 +185,26 @@ func TestInit_IsIdempotent(t *testing.T) {
 		t.Fatalf("second air init failed: %v\n%s", err, out)
 	}
 
-	// Should not duplicate .gitignore entries
-	content, _ := os.ReadFile(filepath.Join(tmpDir, ".gitignore"))
-	count := strings.Count(string(content), ".air/")
-	if count > 1 {
-		t.Errorf(".gitignore contains .air/ %d times, expected 1", count)
+	// Should mention directory already exists
+	if !strings.Contains(out, "already exists") {
+		t.Error("expected 'already exists' message on re-init")
 	}
 }
 
 func TestInit_FailsOutsideGitRepo(t *testing.T) {
+	// Create temp dir without git
 	tmpDir, err := os.MkdirTemp("", "air-test-nogit-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tmpDir)
+
+	// Create fake home
+	fakeHome, _ := os.MkdirTemp("", "air-test-home-*")
+	defer os.RemoveAll(fakeHome)
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", fakeHome)
+	defer os.Setenv("HOME", origHome)
 
 	_, err = runAir(t, tmpDir, "init")
 	if err == nil {
@@ -196,10 +220,11 @@ func TestPlanList_ShowsPlans(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	runAir(t, tmpDir, "init")
+	initProject(t, tmpDir)
 
 	// Create test plans
-	plansDir := filepath.Join(tmpDir, ".air", "plans")
+	airDir := getTestAirDir(t, tmpDir)
+	plansDir := filepath.Join(airDir, "plans")
 	os.WriteFile(filepath.Join(plansDir, "auth.md"), []byte("# Auth plan\n**Objective:** Test"), 0644)
 	os.WriteFile(filepath.Join(plansDir, "api.md"), []byte("# API plan\n**Objective:** Test"), 0644)
 
@@ -220,7 +245,7 @@ func TestPlanList_EmptyMessage(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	runAir(t, tmpDir, "init")
+	initProject(t, tmpDir)
 
 	out, err := runAir(t, tmpDir, "plan", "list")
 	if err != nil {
@@ -236,11 +261,12 @@ func TestPlanShow_DisplaysPlan(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	runAir(t, tmpDir, "init")
+	initProject(t, tmpDir)
 
 	// Create test plan
+	airDir := getTestAirDir(t, tmpDir)
 	content := "# Test Plan\n\n**Objective:** Do the thing\n\n## Details\nMore info here."
-	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "test.md"), []byte(content), 0644)
+	os.WriteFile(filepath.Join(airDir, "plans", "test.md"), []byte(content), 0644)
 
 	out, err := runAir(t, tmpDir, "plan", "show", "test")
 	if err != nil {
@@ -259,7 +285,7 @@ func TestPlanShow_FailsForMissingPlan(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	runAir(t, tmpDir, "init")
+	initProject(t, tmpDir)
 
 	_, err := runAir(t, tmpDir, "plan", "show", "nonexistent")
 	if err == nil {
@@ -271,10 +297,11 @@ func TestPlanArchiveAndRestore(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	runAir(t, tmpDir, "init")
+	initProject(t, tmpDir)
 
 	// Create test plan
-	plansDir := filepath.Join(tmpDir, ".air", "plans")
+	airDir := getTestAirDir(t, tmpDir)
+	plansDir := filepath.Join(airDir, "plans")
 	planPath := filepath.Join(plansDir, "test.md")
 	os.WriteFile(planPath, []byte("# Test"), 0644)
 
@@ -330,10 +357,11 @@ func TestRun_ShowsPlansWithNoArgs(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	initAndCommit(t, tmpDir)
+	initProject(t, tmpDir)
 
 	// Create test plan
-	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "test.md"), []byte("# Test"), 0644)
+	airDir := getTestAirDir(t, tmpDir)
+	os.WriteFile(filepath.Join(airDir, "plans", "test.md"), []byte("# Test"), 0644)
 
 	out, err := runAir(t, tmpDir, "run")
 	if err != nil {
@@ -352,10 +380,11 @@ func TestRun_FailsForMissingPlan(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	initAndCommit(t, tmpDir)
+	initProject(t, tmpDir)
 
 	// Create one plan so we get past the "no plans" check
-	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "exists.md"), []byte("# Exists"), 0644)
+	airDir := getTestAirDir(t, tmpDir)
+	os.WriteFile(filepath.Join(airDir, "plans", "exists.md"), []byte("# Exists"), 0644)
 
 	_, err := runAir(t, tmpDir, "run", "nonexistent")
 	if err == nil {
@@ -367,18 +396,19 @@ func TestRun_CreatesWorktreeDirectory(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	initAndCommit(t, tmpDir)
+	initProject(t, tmpDir)
 
 	// Create test plan
-	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "test.md"), []byte("# Test\n**Objective:** Test"), 0644)
+	airDir := getTestAirDir(t, tmpDir)
+	os.WriteFile(filepath.Join(airDir, "plans", "test.md"), []byte("# Test\n**Objective:** Test"), 0644)
 
 	// Note: This will fail to actually run claude/tmux, but should create the worktree
 	runAir(t, tmpDir, "run", "test")
 
-	// Check worktree was created
-	wtPath := filepath.Join(tmpDir, ".air", "worktrees", "test")
+	// Check worktree was created in ~/.air/<project>/worktrees/
+	wtPath := filepath.Join(airDir, "worktrees", "test")
 	if _, err := os.Stat(wtPath); os.IsNotExist(err) {
-		t.Error("worktree directory was not created")
+		t.Errorf("worktree directory was not created at %s", wtPath)
 	}
 }
 
@@ -386,21 +416,25 @@ func TestRun_GeneratesLaunchScript(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	initAndCommit(t, tmpDir)
+	initProject(t, tmpDir)
 
 	// Create test plan
-	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "test.md"), []byte("# Test\n**Objective:** Test"), 0644)
+	airDir := getTestAirDir(t, tmpDir)
+	os.WriteFile(filepath.Join(airDir, "plans", "test.md"), []byte("# Test\n**Objective:** Test"), 0644)
 
 	runAir(t, tmpDir, "run", "test")
 
-	// Check launch script exists
-	scriptPath := filepath.Join(tmpDir, ".air", "worktrees", "test", ".air", "launch.sh")
+	// Check launch script exists in agents dir (not in worktree anymore)
+	scriptPath := filepath.Join(airDir, "agents", "test", "launch.sh")
 	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
-		t.Error("launch.sh was not created")
+		t.Errorf("launch.sh was not created at %s", scriptPath)
 	}
 
 	// Check it's executable
-	info, _ := os.Stat(scriptPath)
+	info, err := os.Stat(scriptPath)
+	if err != nil {
+		t.Fatalf("failed to stat launch.sh: %v", err)
+	}
 	if info.Mode()&0111 == 0 {
 		t.Error("launch.sh is not executable")
 	}
@@ -419,23 +453,24 @@ func TestRun_LaunchScriptContainsPlanContent(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	initAndCommit(t, tmpDir)
+	initProject(t, tmpDir)
 
 	// Create test plan with unique content
+	airDir := getTestAirDir(t, tmpDir)
 	planContent := "**Objective:** Implement the FOOBAR_UNIQUE_STRING feature"
-	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "test.md"), []byte(planContent), 0644)
+	os.WriteFile(filepath.Join(airDir, "plans", "test.md"), []byte(planContent), 0644)
 
 	runAir(t, tmpDir, "run", "test")
 
-	// Check assignment file contains plan content
-	assignmentPath := filepath.Join(tmpDir, ".air", "worktrees", "test", ".air", ".assignment")
+	// Check assignment file contains plan content (now in agents dir)
+	assignmentPath := filepath.Join(airDir, "agents", "test", "assignment")
 	content, err := os.ReadFile(assignmentPath)
 	if err != nil {
-		t.Fatalf("failed to read .assignment: %v", err)
+		t.Fatalf("failed to read assignment: %v", err)
 	}
 
 	if !strings.Contains(string(content), "FOOBAR_UNIQUE_STRING") {
-		t.Error(".assignment missing plan content")
+		t.Error("assignment missing plan content")
 	}
 }
 
@@ -447,11 +482,12 @@ func TestClean_RemovesSpecificWorktree(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	initAndCommit(t, tmpDir)
+	initProject(t, tmpDir)
 
 	// Create two plans and run them
-	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "keep.md"), []byte("# Keep"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "remove.md"), []byte("# Remove"), 0644)
+	airDir := getTestAirDir(t, tmpDir)
+	os.WriteFile(filepath.Join(airDir, "plans", "keep.md"), []byte("# Keep"), 0644)
+	os.WriteFile(filepath.Join(airDir, "plans", "remove.md"), []byte("# Remove"), 0644)
 
 	runAir(t, tmpDir, "run", "keep", "remove")
 
@@ -459,13 +495,13 @@ func TestClean_RemovesSpecificWorktree(t *testing.T) {
 	runAir(t, tmpDir, "clean", "remove", "--branches")
 
 	// 'keep' should still exist
-	keepPath := filepath.Join(tmpDir, ".air", "worktrees", "keep")
+	keepPath := filepath.Join(airDir, "worktrees", "keep")
 	if _, err := os.Stat(keepPath); os.IsNotExist(err) {
 		t.Error("'keep' worktree should still exist")
 	}
 
 	// 'remove' should be gone
-	removePath := filepath.Join(tmpDir, ".air", "worktrees", "remove")
+	removePath := filepath.Join(airDir, "worktrees", "remove")
 	if _, err := os.Stat(removePath); !os.IsNotExist(err) {
 		t.Error("'remove' worktree should be removed")
 	}
@@ -475,10 +511,11 @@ func TestClean_FailsForNonexistentWorktree(t *testing.T) {
 	tmpDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	initAndCommit(t, tmpDir)
+	initProject(t, tmpDir)
 
 	// Create and run a plan to have at least one worktree
-	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "test.md"), []byte("# Test"), 0644)
+	airDir := getTestAirDir(t, tmpDir)
+	os.WriteFile(filepath.Join(airDir, "plans", "test.md"), []byte("# Test"), 0644)
 	runAir(t, tmpDir, "run", "test")
 
 	_, err := runAir(t, tmpDir, "clean", "nonexistent")
@@ -523,9 +560,7 @@ func TestFullWorkflow(t *testing.T) {
 		t.Fatalf("init failed: %v\n%s", err, out)
 	}
 
-	// Commit .gitignore (required for worktrees)
-	exec.Command("git", "-C", tmpDir, "add", ".gitignore").Run()
-	exec.Command("git", "-C", tmpDir, "commit", "-m", "Add .air/ to gitignore").Run()
+	airDir := getTestAirDir(t, tmpDir)
 
 	// 2. Create a plan manually (simulating what air plan would do)
 	plan := `# Plan: feature
@@ -545,7 +580,7 @@ func TestFullWorkflow(t *testing.T) {
 - [ ] Feature works
 - [ ] Tests pass
 `
-	os.WriteFile(filepath.Join(tmpDir, ".air", "plans", "feature.md"), []byte(plan), 0644)
+	os.WriteFile(filepath.Join(airDir, "plans", "feature.md"), []byte(plan), 0644)
 
 	// 3. List plans
 	out, err = runAir(t, tmpDir, "plan", "list")
@@ -569,12 +604,12 @@ func TestFullWorkflow(t *testing.T) {
 	runAir(t, tmpDir, "run", "feature")
 
 	// 6. Verify worktree structure
-	wtPath := filepath.Join(tmpDir, ".air", "worktrees", "feature")
+	wtPath := filepath.Join(airDir, "worktrees", "feature")
 	if _, err := os.Stat(wtPath); os.IsNotExist(err) {
 		t.Fatal("worktree not created")
 	}
 
-	launchScript := filepath.Join(wtPath, ".air", "launch.sh")
+	launchScript := filepath.Join(airDir, "agents", "feature", "launch.sh")
 	if _, err := os.Stat(launchScript); os.IsNotExist(err) {
 		t.Fatal("launch.sh not created")
 	}
