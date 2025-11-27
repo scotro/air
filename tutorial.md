@@ -33,6 +33,27 @@ air init
 
 This creates `~/.air/air-tutorial/` with context for agent coordination.
 
+**Optional but recommended:** Add permissions for Go tooling so agents can build and test without prompts:
+
+```bash
+mkdir -p .claude
+cat > .claude/settings.json << 'EOF'
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build:*)",
+      "Bash(go test:*)",
+      "Bash(go vet:*)",
+      "Bash(go fmt:*)",
+      "Bash(go mod:*)",
+      "Bash(go run:*)"
+    ]
+  }
+}
+EOF
+git add .claude && git commit -m "Add Claude permissions for Go tooling"
+```
+
 ## 3. Plan the Work
 
 ```bash
