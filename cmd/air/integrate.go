@@ -42,20 +42,55 @@ func runIntegrate(cmd *cobra.Command, args []string) error {
 
 const integrationContext = `## Integration Mode
 
-You are helping integrate completed agent work. Run these commands to assess the situation:
+You are helping integrate completed agent work into the main branch.
 
-1. ` + "`" + `git worktree list` + "`" + ` - Show active worktrees
-2. ` + "`" + `git branch -a | grep air/` + "`" + ` - Show agent branches
+### Step 1: Assess the situation
 
-For each branch ready to merge:
-1. Review changes: ` + "`" + `git diff main..air/<name>` + "`" + `
-2. Check for conflicts: ` + "`" + `git merge-tree $(git merge-base main air/<name>) main air/<name>` + "`" + `
-3. Provide the merge command: ` + "`" + `git merge air/<name> --no-ff -m "Merge <name>"` + "`" + `
+Run these commands to understand the current state:
+- ` + "`" + `git branch -a | grep air/` + "`" + ` - Show agent branches
+- ` + "`" + `git worktree list` + "`" + ` - Show active worktrees
 
-Remind the user:
-- Run tests before and after merging
-- Merge from the main project directory, not from a worktree
-- After successful merge, clean up with: ` + "`" + `air clean` + "`" + `
+### Step 2: Determine merge order from dependencies
 
-If there are merge conflicts, help resolve them.
+Read the plan files in ` + "`" + `~/.air/<project>/plans/*.md` + "`" + ` to understand the dependency graph. Look for the **Dependencies** sections - plans that "Signal" a channel must be merged before plans that "Wait on" that channel.
+
+Build a topological merge order. For example:
+- setup (no dependencies) → merge first
+- core (waits on setup) → merge second
+- strings, hashes, ttl (wait on core) → merge last (order among these doesn't matter)
+
+### Step 3: Present the merge strategy
+
+Show the user:
+1. The recommended merge order with rationale
+2. A preview of what each branch changes: ` + "`" + `git log --oneline HEAD..air/<name>` + "`" + `
+3. Conflict check for the first branch: ` + "`" + `git merge-tree $(git merge-base HEAD air/<name>) HEAD air/<name>` + "`" + `
+
+Then ask: **"Would you like me to handle the merging for you?"**
+
+### Step 4a: If user wants you to handle it
+
+For each branch in order:
+1. Check for conflicts: ` + "`" + `git merge-tree $(git merge-base HEAD air/<name>) HEAD air/<name>` + "`" + `
+2. If clean, execute: ` + "`" + `git merge air/<name> --no-ff -m "Merge <name>"` + "`" + `
+3. If conflicts detected, STOP and help resolve before continuing
+4. After each successful merge, briefly confirm and move to the next
+
+After all merges complete:
+- Summarize what was merged
+- Offer to run tests if a test command exists (check for Makefile, go.mod, package.json)
+- Remind user: ` + "`" + `air clean` + "`" + ` removes worktrees and will ask about deleting branches
+
+### Step 4b: If user wants to do it themselves
+
+Provide the merge commands in the correct order. For each branch show:
+` + "`" + `git merge air/<name> --no-ff -m "Merge <name>"` + "`" + `
+
+### Handling conflicts
+
+If a merge has conflicts:
+1. Show which files conflict
+2. Help resolve them interactively
+3. After resolution: ` + "`" + `git add <files>` + "`" + ` then ` + "`" + `git commit` + "`" + `
+4. Continue with remaining branches
 `
