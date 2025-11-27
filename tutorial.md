@@ -97,23 +97,17 @@ air status
 
 ## 6. Integrate the Work
 
-Once agents are done, detach from tmux (`Ctrl+b d`) and run:
+Once agents are done, exit or detach from tmux (`Ctrl+b d`).
+
+You should be on your main, working copy of `air-tutorial`. To integrate all of the work that the agents have completed, run:
 
 ```bash
 air integrate
 ```
 
-Claude helps merge each branch:
+Claude helps merge each branch.
 
-```bash
-# Typical flow for each branch:
-git merge air/core --no-ff -m "Merge core: RESP parser and server"
-git merge air/strings --no-ff -m "Merge strings: GET/SET/DEL commands"
-git merge air/collections --no-ff -m "Merge collections: lists and hashes"
-git merge air/ttl --no-ff -m "Merge ttl: expiration support"
-```
-
-Run tests after each merge to catch conflicts early.
+With a real project, you'll want to ensure you are on an integration or feature branch before running this command.
 
 ## 7. Test Your Redis
 
