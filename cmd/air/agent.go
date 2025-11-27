@@ -201,9 +201,15 @@ func runAgentWait(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Waiting for channel '%s'...\n", channel)
 
-	// Poll until channel exists
+	// Poll until channel exists (interval configurable via AIR_POLL_INTERVAL for testing)
+	pollInterval := 2 * time.Second
+	if envInterval := os.Getenv("AIR_POLL_INTERVAL"); envInterval != "" {
+		if d, err := time.ParseDuration(envInterval); err == nil {
+			pollInterval = d
+		}
+	}
 	for !channelExists(channel) {
-		time.Sleep(2 * time.Second)
+		time.Sleep(pollInterval)
 	}
 
 	// Read and print payload

@@ -29,8 +29,8 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// TestHelper sets up a temp git repo and a fake HOME directory, returns cleanup function
-func setupTestRepo(t *testing.T) (string, func()) {
+// setupTestRepo sets up a temp git repo and a fake HOME directory
+func setupTestRepo(t *testing.T) *testEnv {
 	t.Helper()
 
 	// Create temp directory for project
@@ -46,17 +46,12 @@ func setupTestRepo(t *testing.T) (string, func()) {
 		t.Fatalf("failed to create fake home: %v", err)
 	}
 
-	// Save original HOME
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", fakeHome)
-
 	// Initialize git repo with explicit main branch (ensures consistency across environments)
 	cmd := exec.Command("git", "init", "-b", "main")
 	cmd.Dir = tmpDir
 	if err := cmd.Run(); err != nil {
 		os.RemoveAll(tmpDir)
 		os.RemoveAll(fakeHome)
-		os.Setenv("HOME", origHome)
 		t.Fatalf("failed to init git repo: %v", err)
 	}
 
@@ -70,21 +65,77 @@ func setupTestRepo(t *testing.T) (string, func()) {
 	exec.Command("git", "-C", tmpDir, "add", ".").Run()
 	exec.Command("git", "-C", tmpDir, "commit", "-m", "Initial commit").Run()
 
-	cleanup := func() {
-		os.Setenv("HOME", origHome)
-		os.RemoveAll(tmpDir)
-		os.RemoveAll(fakeHome)
+	return &testEnv{
+		dir:  tmpDir,
+		home: fakeHome,
+		cleanup: func() {
+			os.RemoveAll(tmpDir)
+			os.RemoveAll(fakeHome)
+		},
 	}
-
-	return tmpDir, cleanup
 }
 
-// getTestAirDir returns the air directory for a test project
-func getTestAirDir(t *testing.T, projectDir string) string {
+// testEnv holds test environment paths for parallel-safe test execution
+type testEnv struct {
+	dir     string   // project directory
+	home    string   // fake HOME directory
+	cleanup func()
+}
+
+// setupTestDir sets up a temp directory with fake HOME but no git initialization.
+// Use this for tests that don't need git operations (faster than setupTestRepo).
+func setupTestDir(t *testing.T) *testEnv {
 	t.Helper()
-	home := os.Getenv("HOME")
-	projectName := filepath.Base(projectDir)
-	return filepath.Join(home, ".air", projectName)
+
+	tmpDir, err := os.MkdirTemp("", "air-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+
+	fakeHome, err := os.MkdirTemp("", "air-test-home-*")
+	if err != nil {
+		os.RemoveAll(tmpDir)
+		t.Fatalf("failed to create fake home: %v", err)
+	}
+
+	return &testEnv{
+		dir:  tmpDir,
+		home: fakeHome,
+		cleanup: func() {
+			os.RemoveAll(tmpDir)
+			os.RemoveAll(fakeHome)
+		},
+	}
+}
+
+// run executes air with the test environment's HOME, with optional extra env vars
+func (e *testEnv) run(t *testing.T, env map[string]string, args ...string) (string, error) {
+	t.Helper()
+
+	cmd := exec.Command(testBinaryPath, args...)
+	cmd.Dir = e.dir
+
+	// Build env: filter AIR_* from parent, set HOME explicitly
+	for _, v := range os.Environ() {
+		if !strings.HasPrefix(v, "AIR_") && !strings.HasPrefix(v, "HOME=") {
+			cmd.Env = append(cmd.Env, v)
+		}
+	}
+	cmd.Env = append(cmd.Env, "HOME="+e.home)
+
+	// Add extra env vars
+	for k, v := range env {
+		cmd.Env = append(cmd.Env, k+"="+v)
+	}
+
+	out, err := cmd.CombinedOutput()
+	return string(out), err
+}
+
+// airDir returns the .air directory path for this test environment
+func (e *testEnv) airDir() string {
+	projectName := filepath.Base(e.dir)
+	return filepath.Join(e.home, ".air", projectName)
 }
 
 // runAir runs the air command in the given directory
@@ -117,16 +168,17 @@ func initProject(t *testing.T, dir string) {
 // ============================================================================
 
 func TestInit_CreatesAirDirectory(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	out, err := runAir(t, tmpDir, "init")
+	out, err := env.run(t, nil, "init")
 	if err != nil {
 		t.Fatalf("air init failed: %v\n%s", err, out)
 	}
 
 	// Check ~/.air/<project>/ exists
-	airDir := getTestAirDir(t, tmpDir)
+	airDir := env.airDir()
 	if _, err := os.Stat(airDir); os.IsNotExist(err) {
 		t.Errorf("air directory was not created at %s", airDir)
 	}
@@ -145,12 +197,13 @@ func TestInit_CreatesAirDirectory(t *testing.T) {
 }
 
 func TestInit_CreatesContextWithExpectedContent(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	runAir(t, tmpDir, "init")
+	env.run(t, nil, "init")
 
-	airDir := getTestAirDir(t, tmpDir)
+	airDir := env.airDir()
 	content, err := os.ReadFile(filepath.Join(airDir, "context.md"))
 	if err != nil {
 		t.Fatalf("failed to read context.md: %v", err)
@@ -175,12 +228,13 @@ func TestInit_CreatesContextWithExpectedContent(t *testing.T) {
 }
 
 func TestInit_IsIdempotent(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
 	// Run init twice
-	runAir(t, tmpDir, "init")
-	out, err := runAir(t, tmpDir, "init")
+	env.run(t, nil, "init")
+	out, err := env.run(t, nil, "init")
 	if err != nil {
 		t.Fatalf("second air init failed: %v\n%s", err, out)
 	}
@@ -217,18 +271,19 @@ func TestInit_FailsOutsideGitRepo(t *testing.T) {
 // ============================================================================
 
 func TestPlanList_ShowsPlans(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	initProject(t, tmpDir)
+	env.run(t, nil, "init")
 
 	// Create test plans
-	airDir := getTestAirDir(t, tmpDir)
+	airDir := env.airDir()
 	plansDir := filepath.Join(airDir, "plans")
 	os.WriteFile(filepath.Join(plansDir, "auth.md"), []byte("# Auth plan\n**Objective:** Test"), 0644)
 	os.WriteFile(filepath.Join(plansDir, "api.md"), []byte("# API plan\n**Objective:** Test"), 0644)
 
-	out, err := runAir(t, tmpDir, "plan", "list")
+	out, err := env.run(t, nil, "plan", "list")
 	if err != nil {
 		t.Fatalf("air plan list failed: %v\n%s", err, out)
 	}
@@ -242,12 +297,13 @@ func TestPlanList_ShowsPlans(t *testing.T) {
 }
 
 func TestPlanList_EmptyMessage(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	initProject(t, tmpDir)
+	env.run(t, nil, "init")
 
-	out, err := runAir(t, tmpDir, "plan", "list")
+	out, err := env.run(t, nil, "plan", "list")
 	if err != nil {
 		t.Fatalf("air plan list failed: %v\n%s", err, out)
 	}
@@ -258,17 +314,18 @@ func TestPlanList_EmptyMessage(t *testing.T) {
 }
 
 func TestPlanShow_DisplaysPlan(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	initProject(t, tmpDir)
+	env.run(t, nil, "init")
 
 	// Create test plan
-	airDir := getTestAirDir(t, tmpDir)
+	airDir := env.airDir()
 	content := "# Test Plan\n\n**Objective:** Do the thing\n\n## Details\nMore info here."
 	os.WriteFile(filepath.Join(airDir, "plans", "test.md"), []byte(content), 0644)
 
-	out, err := runAir(t, tmpDir, "plan", "show", "test")
+	out, err := env.run(t, nil, "plan", "show", "test")
 	if err != nil {
 		t.Fatalf("air plan show failed: %v\n%s", err, out)
 	}
@@ -282,31 +339,33 @@ func TestPlanShow_DisplaysPlan(t *testing.T) {
 }
 
 func TestPlanShow_FailsForMissingPlan(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	initProject(t, tmpDir)
+	env.run(t, nil, "init")
 
-	_, err := runAir(t, tmpDir, "plan", "show", "nonexistent")
+	_, err := env.run(t, nil, "plan", "show", "nonexistent")
 	if err == nil {
 		t.Error("expected error for nonexistent plan")
 	}
 }
 
 func TestPlanArchiveAndRestore(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	initProject(t, tmpDir)
+	env.run(t, nil, "init")
 
 	// Create test plan
-	airDir := getTestAirDir(t, tmpDir)
+	airDir := env.airDir()
 	plansDir := filepath.Join(airDir, "plans")
 	planPath := filepath.Join(plansDir, "test.md")
 	os.WriteFile(planPath, []byte("# Test"), 0644)
 
 	// Archive it
-	out, err := runAir(t, tmpDir, "plan", "archive", "test")
+	out, err := env.run(t, nil, "plan", "archive", "test")
 	if err != nil {
 		t.Fatalf("air plan archive failed: %v\n%s", err, out)
 	}
@@ -323,7 +382,7 @@ func TestPlanArchiveAndRestore(t *testing.T) {
 	}
 
 	// Restore it
-	out, err = runAir(t, tmpDir, "plan", "restore", "test")
+	out, err = env.run(t, nil, "plan", "restore", "test")
 	if err != nil {
 		t.Fatalf("air plan restore failed: %v\n%s", err, out)
 	}
@@ -344,26 +403,28 @@ func TestPlanArchiveAndRestore(t *testing.T) {
 // ============================================================================
 
 func TestRun_FailsIfNotInitialized(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	_, err := runAir(t, tmpDir, "run", "test")
+	_, err := env.run(t, nil, "run", "test")
 	if err == nil {
 		t.Error("expected error when not initialized")
 	}
 }
 
 func TestRun_ShowsPlansWithNoArgs(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	initProject(t, tmpDir)
+	env.run(t, nil, "init")
 
 	// Create test plan
-	airDir := getTestAirDir(t, tmpDir)
+	airDir := env.airDir()
 	os.WriteFile(filepath.Join(airDir, "plans", "test.md"), []byte("# Test"), 0644)
 
-	out, err := runAir(t, tmpDir, "run")
+	out, err := env.run(t, nil, "run")
 	if err != nil {
 		t.Fatalf("air run failed: %v\n%s", err, out)
 	}
@@ -377,33 +438,35 @@ func TestRun_ShowsPlansWithNoArgs(t *testing.T) {
 }
 
 func TestRun_FailsForMissingPlan(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	initProject(t, tmpDir)
+	env.run(t, nil, "init")
 
 	// Create one plan so we get past the "no plans" check
-	airDir := getTestAirDir(t, tmpDir)
+	airDir := env.airDir()
 	os.WriteFile(filepath.Join(airDir, "plans", "exists.md"), []byte("# Exists"), 0644)
 
-	_, err := runAir(t, tmpDir, "run", "nonexistent")
+	_, err := env.run(t, nil, "run", "nonexistent")
 	if err == nil {
 		t.Error("expected error for nonexistent plan")
 	}
 }
 
 func TestRun_CreatesWorktreeDirectory(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	initProject(t, tmpDir)
+	env.run(t, nil, "init")
 
 	// Create test plan
-	airDir := getTestAirDir(t, tmpDir)
+	airDir := env.airDir()
 	os.WriteFile(filepath.Join(airDir, "plans", "test.md"), []byte("# Test\n**Objective:** Test"), 0644)
 
 	// Note: This will fail to actually run claude/tmux, but should create the worktree
-	runAir(t, tmpDir, "run", "test")
+	env.run(t, nil, "run", "test")
 
 	// Check worktree was created in ~/.air/<project>/worktrees/
 	wtPath := filepath.Join(airDir, "worktrees", "test")
@@ -413,16 +476,17 @@ func TestRun_CreatesWorktreeDirectory(t *testing.T) {
 }
 
 func TestRun_GeneratesLaunchScript(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	initProject(t, tmpDir)
+	env.run(t, nil, "init")
 
 	// Create test plan
-	airDir := getTestAirDir(t, tmpDir)
+	airDir := env.airDir()
 	os.WriteFile(filepath.Join(airDir, "plans", "test.md"), []byte("# Test\n**Objective:** Test"), 0644)
 
-	runAir(t, tmpDir, "run", "test")
+	env.run(t, nil, "run", "test")
 
 	// Check launch script exists in agents dir (not in worktree anymore)
 	scriptPath := filepath.Join(airDir, "agents", "test", "launch.sh")
@@ -450,17 +514,18 @@ func TestRun_GeneratesLaunchScript(t *testing.T) {
 }
 
 func TestRun_LaunchScriptContainsPlanContent(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	initProject(t, tmpDir)
+	env.run(t, nil, "init")
 
 	// Create test plan with unique content
-	airDir := getTestAirDir(t, tmpDir)
+	airDir := env.airDir()
 	planContent := "**Objective:** Implement the FOOBAR_UNIQUE_STRING feature"
 	os.WriteFile(filepath.Join(airDir, "plans", "test.md"), []byte(planContent), 0644)
 
-	runAir(t, tmpDir, "run", "test")
+	env.run(t, nil, "run", "test")
 
 	// Check assignment file contains plan content (now in agents dir)
 	assignmentPath := filepath.Join(airDir, "agents", "test", "assignment")
@@ -479,20 +544,21 @@ func TestRun_LaunchScriptContainsPlanContent(t *testing.T) {
 // ============================================================================
 
 func TestClean_RemovesSpecificWorktree(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	initProject(t, tmpDir)
+	env.run(t, nil, "init")
 
 	// Create two plans and run them
-	airDir := getTestAirDir(t, tmpDir)
+	airDir := env.airDir()
 	os.WriteFile(filepath.Join(airDir, "plans", "keep.md"), []byte("# Keep"), 0644)
 	os.WriteFile(filepath.Join(airDir, "plans", "remove.md"), []byte("# Remove"), 0644)
 
-	runAir(t, tmpDir, "run", "keep", "remove")
+	env.run(t, nil, "run", "keep", "remove")
 
 	// Clean only 'remove'
-	runAir(t, tmpDir, "clean", "remove", "--branches")
+	env.run(t, nil, "clean", "remove", "--branches")
 
 	// 'keep' should still exist
 	keepPath := filepath.Join(airDir, "worktrees", "keep")
@@ -508,17 +574,18 @@ func TestClean_RemovesSpecificWorktree(t *testing.T) {
 }
 
 func TestClean_FailsForNonexistentWorktree(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	initProject(t, tmpDir)
+	env.run(t, nil, "init")
 
 	// Create and run a plan to have at least one worktree
-	airDir := getTestAirDir(t, tmpDir)
+	airDir := env.airDir()
 	os.WriteFile(filepath.Join(airDir, "plans", "test.md"), []byte("# Test"), 0644)
-	runAir(t, tmpDir, "run", "test")
+	env.run(t, nil, "run", "test")
 
-	_, err := runAir(t, tmpDir, "clean", "nonexistent")
+	_, err := env.run(t, nil, "clean", "nonexistent")
 	if err == nil {
 		t.Error("expected error for nonexistent worktree")
 	}
@@ -529,10 +596,11 @@ func TestClean_FailsForNonexistentWorktree(t *testing.T) {
 // ============================================================================
 
 func TestVersion_ShowsVersion(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	out, err := runAir(t, tmpDir, "version")
+	out, err := env.run(t, nil, "version")
 	if err != nil {
 		t.Fatalf("air version failed: %v\n%s", err, out)
 	}
@@ -547,20 +615,21 @@ func TestVersion_ShowsVersion(t *testing.T) {
 // ============================================================================
 
 func TestFullWorkflow(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
 	// 1. Initialize
-	out, err := runAir(t, tmpDir, "init")
+	out, err := env.run(t, nil, "init")
 	if err != nil {
 		t.Fatalf("init failed: %v\n%s", err, out)
 	}
 
-	airDir := getTestAirDir(t, tmpDir)
+	airDir := env.airDir()
 
 	// 2. Create a plan manually (simulating what air plan would do)
 	plan := `# Plan: feature
@@ -583,7 +652,7 @@ func TestFullWorkflow(t *testing.T) {
 	os.WriteFile(filepath.Join(airDir, "plans", "feature.md"), []byte(plan), 0644)
 
 	// 3. List plans
-	out, err = runAir(t, tmpDir, "plan", "list")
+	out, err = env.run(t, nil, "plan", "list")
 	if err != nil {
 		t.Fatalf("plan list failed: %v\n%s", err, out)
 	}
@@ -592,7 +661,7 @@ func TestFullWorkflow(t *testing.T) {
 	}
 
 	// 4. Show plan
-	out, err = runAir(t, tmpDir, "plan", "show", "feature")
+	out, err = env.run(t, nil, "plan", "show", "feature")
 	if err != nil {
 		t.Fatalf("plan show failed: %v\n%s", err, out)
 	}
@@ -601,7 +670,7 @@ func TestFullWorkflow(t *testing.T) {
 	}
 
 	// 5. Run (will create worktree but fail on tmux - that's ok)
-	runAir(t, tmpDir, "run", "feature")
+	env.run(t, nil, "run", "feature")
 
 	// 6. Verify worktree structure
 	wtPath := filepath.Join(airDir, "worktrees", "feature")
@@ -615,7 +684,7 @@ func TestFullWorkflow(t *testing.T) {
 	}
 
 	// 7. Clean up
-	out, err = runAir(t, tmpDir, "clean", "feature", "--branches")
+	out, err = env.run(t, nil, "clean", "feature", "--branches")
 	if err != nil {
 		t.Fatalf("clean failed: %v\n%s", err, out)
 	}

@@ -15,17 +15,18 @@ import (
 // ============================================================================
 
 func TestAgentSignal_CreatesChannelFile(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
 	// Create channels directory
-	channelsDir := filepath.Join(tmpDir, ".air", "channels")
+	channelsDir := filepath.Join(env.dir, ".air", "channels")
 	os.MkdirAll(channelsDir, 0755)
 
 	// Run signal command
-	out, err := runAirWithEnv(t, tmpDir, map[string]string{
-		"AIR_AGENT_ID":    "test-agent",
-		"AIR_WORKTREE":    tmpDir,
+	out, err := env.run(t, map[string]string{
+		"AIR_AGENT_ID":     "test-agent",
+		"AIR_WORKTREE":     env.dir,
 		"AIR_CHANNELS_DIR": channelsDir,
 	}, "agent", "signal", "test-channel")
 
@@ -56,46 +57,48 @@ func TestAgentSignal_CreatesChannelFile(t *testing.T) {
 	if payload.SHA == "" {
 		t.Error("SHA should not be empty")
 	}
-	if payload.Worktree != tmpDir {
-		t.Errorf("expected worktree %q, got %q", tmpDir, payload.Worktree)
+	if payload.Worktree != env.dir {
+		t.Errorf("expected worktree %q, got %q", env.dir, payload.Worktree)
 	}
 }
 
 func TestAgentSignal_FailsIfAlreadySignaled(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	channelsDir := filepath.Join(tmpDir, ".air", "channels")
+	channelsDir := filepath.Join(env.dir, ".air", "channels")
 	os.MkdirAll(channelsDir, 0755)
 
-	env := map[string]string{
-		"AIR_AGENT_ID":    "test-agent",
-		"AIR_WORKTREE":    tmpDir,
+	envVars := map[string]string{
+		"AIR_AGENT_ID":     "test-agent",
+		"AIR_WORKTREE":     env.dir,
 		"AIR_CHANNELS_DIR": channelsDir,
 	}
 
 	// First signal should succeed
-	_, err := runAirWithEnv(t, tmpDir, env, "agent", "signal", "test-channel")
+	_, err := env.run(t, envVars, "agent", "signal", "test-channel")
 	if err != nil {
 		t.Fatalf("first signal failed: %v", err)
 	}
 
 	// Second signal should fail
-	_, err = runAirWithEnv(t, tmpDir, env, "agent", "signal", "test-channel")
+	_, err = env.run(t, envVars, "agent", "signal", "test-channel")
 	if err == nil {
 		t.Error("expected error when signaling already-signaled channel")
 	}
 }
 
 func TestAgentSignal_FailsWithoutAgentID(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	channelsDir := filepath.Join(tmpDir, ".air", "channels")
+	channelsDir := filepath.Join(env.dir, ".air", "channels")
 	os.MkdirAll(channelsDir, 0755)
 
 	// Don't set AIR_AGENT_ID
-	_, err := runAirWithEnv(t, tmpDir, map[string]string{
+	_, err := env.run(t, map[string]string{
 		"AIR_CHANNELS_DIR": channelsDir,
 	}, "agent", "signal", "test-channel")
 
@@ -105,16 +108,17 @@ func TestAgentSignal_FailsWithoutAgentID(t *testing.T) {
 }
 
 func TestAgentSignal_CreatesSubdirectories(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	channelsDir := filepath.Join(tmpDir, ".air", "channels")
+	channelsDir := filepath.Join(env.dir, ".air", "channels")
 	os.MkdirAll(channelsDir, 0755)
 
 	// Signal with a path that includes subdirectory
-	_, err := runAirWithEnv(t, tmpDir, map[string]string{
-		"AIR_AGENT_ID":    "test-agent",
-		"AIR_WORKTREE":    tmpDir,
+	_, err := env.run(t, map[string]string{
+		"AIR_AGENT_ID":     "test-agent",
+		"AIR_WORKTREE":     env.dir,
 		"AIR_CHANNELS_DIR": channelsDir,
 	}, "agent", "signal", "done/test-agent")
 
@@ -134,10 +138,11 @@ func TestAgentSignal_CreatesSubdirectories(t *testing.T) {
 // ============================================================================
 
 func TestAgentWait_ReturnsImmediatelyIfChannelExists(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestDir(t)
+	defer env.cleanup()
 
-	channelsDir := filepath.Join(tmpDir, ".air", "channels")
+	channelsDir := filepath.Join(env.dir, ".air", "channels")
 	os.MkdirAll(channelsDir, 0755)
 
 	// Pre-create a channel file
@@ -152,7 +157,7 @@ func TestAgentWait_ReturnsImmediatelyIfChannelExists(t *testing.T) {
 
 	// Wait should return immediately
 	start := time.Now()
-	out, err := runAirWithEnv(t, tmpDir, map[string]string{
+	out, err := env.run(t, map[string]string{
 		"AIR_CHANNELS_DIR": channelsDir,
 	}, "agent", "wait", "pre-existing")
 
@@ -175,10 +180,11 @@ func TestAgentWait_ReturnsImmediatelyIfChannelExists(t *testing.T) {
 }
 
 func TestAgentWait_BlocksUntilSignaled(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestDir(t)
+	defer env.cleanup()
 
-	channelsDir := filepath.Join(tmpDir, ".air", "channels")
+	channelsDir := filepath.Join(env.dir, ".air", "channels")
 	os.MkdirAll(channelsDir, 0755)
 
 	// Start wait in background
@@ -187,14 +193,15 @@ func TestAgentWait_BlocksUntilSignaled(t *testing.T) {
 	var waitOut string
 
 	go func() {
-		waitOut, waitErr = runAirWithEnv(t, tmpDir, map[string]string{
-			"AIR_CHANNELS_DIR": channelsDir,
+		waitOut, waitErr = env.run(t, map[string]string{
+			"AIR_CHANNELS_DIR":  channelsDir,
+			"AIR_POLL_INTERVAL": "50ms",
 		}, "agent", "wait", "delayed-channel")
 		close(done)
 	}()
 
 	// Wait a bit to ensure the wait command is blocking
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	select {
 	case <-done:
@@ -222,7 +229,7 @@ func TestAgentWait_BlocksUntilSignaled(t *testing.T) {
 		if !strings.Contains(waitOut, "delayed123") {
 			t.Error("wait output missing expected SHA")
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(500 * time.Millisecond):
 		t.Fatal("wait did not complete after channel was signaled")
 	}
 }
@@ -232,15 +239,16 @@ func TestAgentWait_BlocksUntilSignaled(t *testing.T) {
 // ============================================================================
 
 func TestAgentDone_SignalsDoneChannel(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	channelsDir := filepath.Join(tmpDir, ".air", "channels")
+	channelsDir := filepath.Join(env.dir, ".air", "channels")
 	os.MkdirAll(channelsDir, 0755)
 
-	out, err := runAirWithEnv(t, tmpDir, map[string]string{
-		"AIR_AGENT_ID":    "my-agent",
-		"AIR_WORKTREE":    tmpDir,
+	out, err := env.run(t, map[string]string{
+		"AIR_AGENT_ID":     "my-agent",
+		"AIR_WORKTREE":     env.dir,
 		"AIR_CHANNELS_DIR": channelsDir,
 	}, "agent", "done")
 
@@ -264,13 +272,14 @@ func TestAgentDone_SignalsDoneChannel(t *testing.T) {
 }
 
 func TestAgentDone_FailsWithoutAgentID(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	channelsDir := filepath.Join(tmpDir, ".air", "channels")
+	channelsDir := filepath.Join(env.dir, ".air", "channels")
 	os.MkdirAll(channelsDir, 0755)
 
-	_, err := runAirWithEnv(t, tmpDir, map[string]string{
+	_, err := env.run(t, map[string]string{
 		"AIR_CHANNELS_DIR": channelsDir,
 	}, "agent", "done")
 
@@ -284,13 +293,14 @@ func TestAgentDone_FailsWithoutAgentID(t *testing.T) {
 // ============================================================================
 
 func TestAgentMerge_FailsIfChannelNotSignaled(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	channelsDir := filepath.Join(tmpDir, ".air", "channels")
+	channelsDir := filepath.Join(env.dir, ".air", "channels")
 	os.MkdirAll(channelsDir, 0755)
 
-	_, err := runAirWithEnv(t, tmpDir, map[string]string{
+	_, err := env.run(t, map[string]string{
 		"AIR_CHANNELS_DIR": channelsDir,
 	}, "agent", "merge", "nonexistent")
 
@@ -300,28 +310,29 @@ func TestAgentMerge_FailsIfChannelNotSignaled(t *testing.T) {
 }
 
 func TestAgentMerge_MergesBranchFromSameRepo(t *testing.T) {
+	t.Parallel()
 	// This tests the scenario where worktrees share the same git object store
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	channelsDir := filepath.Join(tmpDir, ".air", "channels")
+	channelsDir := filepath.Join(env.dir, ".air", "channels")
 	os.MkdirAll(channelsDir, 0755)
 
 	// Create a feature branch with a commit
-	exec.Command("git", "-C", tmpDir, "checkout", "-b", "air/producer").Run()
-	testFile := filepath.Join(tmpDir, "new-feature.txt")
+	exec.Command("git", "-C", env.dir, "checkout", "-b", "air/producer").Run()
+	testFile := filepath.Join(env.dir, "new-feature.txt")
 	os.WriteFile(testFile, []byte("new feature content"), 0644)
-	exec.Command("git", "-C", tmpDir, "add", "new-feature.txt").Run()
-	exec.Command("git", "-C", tmpDir, "commit", "-m", "Add new feature").Run()
+	exec.Command("git", "-C", env.dir, "add", "new-feature.txt").Run()
+	exec.Command("git", "-C", env.dir, "commit", "-m", "Add new feature").Run()
 
 	// Get the SHA of the commit
-	shaCmd := exec.Command("git", "-C", tmpDir, "rev-parse", "HEAD")
+	shaCmd := exec.Command("git", "-C", env.dir, "rev-parse", "HEAD")
 	shaOut, _ := shaCmd.Output()
 	sha := strings.TrimSpace(string(shaOut))
 
 	// Create a consumer branch from main (before the feature)
-	exec.Command("git", "-C", tmpDir, "checkout", "main").Run()
-	exec.Command("git", "-C", tmpDir, "checkout", "-b", "air/consumer").Run()
+	exec.Command("git", "-C", env.dir, "checkout", "main").Run()
+	exec.Command("git", "-C", env.dir, "checkout", "-b", "air/consumer").Run()
 
 	// Verify the file doesn't exist on this branch
 	if _, err := os.Stat(testFile); !os.IsNotExist(err) {
@@ -332,7 +343,7 @@ func TestAgentMerge_MergesBranchFromSameRepo(t *testing.T) {
 	payload := ChannelPayload{
 		SHA:       sha,
 		Branch:    "air/producer",
-		Worktree:  tmpDir,
+		Worktree:  env.dir,
 		Agent:     "producer",
 		Timestamp: time.Now(),
 	}
@@ -340,7 +351,7 @@ func TestAgentMerge_MergesBranchFromSameRepo(t *testing.T) {
 	os.WriteFile(filepath.Join(channelsDir, "feature-ready.json"), data, 0644)
 
 	// Merge the branch
-	out, err := runAirWithEnv(t, tmpDir, map[string]string{
+	out, err := env.run(t, map[string]string{
 		"AIR_CHANNELS_DIR": channelsDir,
 	}, "agent", "merge", "feature-ready")
 
@@ -365,16 +376,17 @@ func TestAgentMerge_MergesBranchFromSameRepo(t *testing.T) {
 // ============================================================================
 
 func TestRun_SetsEnvironmentVariables(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	initProject(t, tmpDir)
+	env.run(t, nil, "init")
 
 	// Create test plan
-	airDir := getTestAirDir(t, tmpDir)
+	airDir := env.airDir()
 	os.WriteFile(filepath.Join(airDir, "plans", "test.md"), []byte("# Test\n**Objective:** Test"), 0644)
 
-	runAir(t, tmpDir, "run", "test")
+	env.run(t, nil, "run", "test")
 
 	// Read the launch script (now in agents dir)
 	scriptPath := filepath.Join(airDir, "agents", "test", "launch.sh")
@@ -406,16 +418,17 @@ func TestRun_SetsEnvironmentVariables(t *testing.T) {
 }
 
 func TestRun_CreatesChannelsDirectory(t *testing.T) {
-	tmpDir, cleanup := setupTestRepo(t)
-	defer cleanup()
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	initProject(t, tmpDir)
+	env.run(t, nil, "init")
 
 	// Create test plan
-	airDir := getTestAirDir(t, tmpDir)
+	airDir := env.airDir()
 	os.WriteFile(filepath.Join(airDir, "plans", "test.md"), []byte("# Test"), 0644)
 
-	runAir(t, tmpDir, "run", "test")
+	env.run(t, nil, "run", "test")
 
 	// Check channels directory was created
 	channelsDir := filepath.Join(airDir, "channels")
