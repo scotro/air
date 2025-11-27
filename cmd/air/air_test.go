@@ -138,31 +138,6 @@ func (e *testEnv) airDir() string {
 	return filepath.Join(e.home, ".air", projectName)
 }
 
-// runAir runs the air command in the given directory
-func runAir(t *testing.T, dir string, args ...string) (string, error) {
-	t.Helper()
-
-	cmd := exec.Command(testBinaryPath, args...)
-	cmd.Dir = dir
-	// Filter out AIR_* env vars to ensure tests have complete control
-	for _, e := range os.Environ() {
-		if !strings.HasPrefix(e, "AIR_") {
-			cmd.Env = append(cmd.Env, e)
-		}
-	}
-	out, err := cmd.CombinedOutput()
-	return string(out), err
-}
-
-// initProject runs air init (no gitignore commit needed anymore)
-func initProject(t *testing.T, dir string) {
-	t.Helper()
-	out, err := runAir(t, dir, "init")
-	if err != nil {
-		t.Fatalf("air init failed: %v\n%s", err, out)
-	}
-}
-
 // ============================================================================
 // air init tests
 // ============================================================================
@@ -246,21 +221,12 @@ func TestInit_IsIdempotent(t *testing.T) {
 }
 
 func TestInit_FailsOutsideGitRepo(t *testing.T) {
-	// Create temp dir without git
-	tmpDir, err := os.MkdirTemp("", "air-test-nogit-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	t.Parallel()
+	// Use setupTestDir (no git) instead of setupTestRepo
+	env := setupTestDir(t)
+	defer env.cleanup()
 
-	// Create fake home
-	fakeHome, _ := os.MkdirTemp("", "air-test-home-*")
-	defer os.RemoveAll(fakeHome)
-	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", fakeHome)
-	defer os.Setenv("HOME", origHome)
-
-	_, err = runAir(t, tmpDir, "init")
+	_, err := env.run(t, nil, "init")
 	if err == nil {
 		t.Error("expected air init to fail outside git repo")
 	}

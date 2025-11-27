@@ -436,30 +436,3 @@ func TestRun_CreatesChannelsDirectory(t *testing.T) {
 		t.Error("channels directory was not created")
 	}
 }
-
-// ============================================================================
-// Helper functions
-// ============================================================================
-
-// runAirWithEnv runs the air command with custom environment variables
-func runAirWithEnv(t *testing.T, dir string, env map[string]string, args ...string) (string, error) {
-	t.Helper()
-
-	cmd := exec.Command(testBinaryPath, args...)
-	cmd.Dir = dir
-
-	// Set up environment - filter out AIR_* variables from parent environment
-	// to ensure tests have complete control over AIR-specific env vars
-	for _, e := range os.Environ() {
-		if !strings.HasPrefix(e, "AIR_") {
-			cmd.Env = append(cmd.Env, e)
-		}
-	}
-	// Add the explicitly provided env vars
-	for k, v := range env {
-		cmd.Env = append(cmd.Env, k+"="+v)
-	}
-
-	out, err := cmd.CombinedOutput()
-	return string(out), err
-}
