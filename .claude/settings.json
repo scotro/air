@@ -4,7 +4,8 @@
             "Bash(go build:*)",
             "Bash(go test:*)",
             "Bash(go vet:*)",
-            "Bash(go fmt:*)"
+            "Bash(go fmt:*)",
+            "Bash(find:*)"
         ]
     },
     "includeCoAuthoredBy": false
