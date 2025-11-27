@@ -273,12 +273,23 @@ You are helping plan work for multiple AI agents that will run in parallel. Each
 Acceptance criteria MUST be specific and testable. For each command/feature:
 - Include at least one concrete test case with expected input/output
 - Specify edge cases (empty input, missing keys, etc.)
-- Require a working smoke test via the actual interface (e.g., redis-cli for Redis)
 
 **Examples:**
 - Bad: ` + "`" + `- [ ] GET command works` + "`" + `
 - Good: ` + "`" + `- [ ] GET existing key returns value: GET foo → "bar" after SET foo bar` + "`" + `
 - Good: ` + "`" + `- [ ] GET missing key returns nil: GET nonexistent → (nil)` + "`" + `
+
+### Testing Boundaries
+
+**Critical:** Parallel agents must not compete for shared resources.
+
+- Parallel agents should only run **unit tests** (no servers, no ports, no shared state)
+- Smoke tests and integration tests require the full system and should happen **after** ` + "`" + `air integrate` + "`" + `
+- If a test requires starting a server, binding a port, or accessing shared state - it's NOT safe for parallel execution
+
+**In acceptance criteria, write:**
+- Good: ` + "`" + `- [ ] Unit tests pass` + "`" + `
+- Bad: ` + "`" + `- [ ] Smoke test with redis-cli works` + "`" + ` (this conflicts across parallel agents!)
 
 ### Concurrent Plans (with Dependencies)
 
