@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-# AIR (AI Runner) installer
+# Air (AI Runner) installer
 # Usage: curl -sSL https://raw.githubusercontent.com/scotro/air/main/install.sh | sh
 
 REPO="scotro/air"

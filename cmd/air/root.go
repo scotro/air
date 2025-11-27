@@ -16,7 +16,7 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "air",
 	Short: "AI Runner - orchestrate concurrent Claude Code agents",
-	Long:  `AIR orchestrates multiple Claude Code agents working in parallel on decomposed tasks using git worktrees.`,
+	Long:  `Air orchestrates multiple Claude Code agents working in parallel on decomposed tasks using git worktrees.`,
 }
 
 var versionCmd = &cobra.Command{

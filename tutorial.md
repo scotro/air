@@ -1,4 +1,4 @@
-# Tutorial: Build a Redis Clone with AIR
+# Tutorial: Build a Redis Clone with Air
 
 Build a working toy Redis server in ~1 hour using parallel AI agents.
 
@@ -43,7 +43,7 @@ git add .
 git commit -m "Initial project structure"
 ```
 
-## 2. Initialize AIR
+## 2. Initialize Air
 
 ```bash
 air init

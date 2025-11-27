@@ -1,8 +1,8 @@
-# AIR Concurrency Support - Requirements Document
+# Air Concurrency Support - Requirements Document
 
 ## Overview
 
-Extend AIR to support **concurrent plans** with explicit coordination between agents. Currently, AIR supports parallel execution of independent plans. This enhancement adds the ability for agents to wait on and signal each other at pre-planned integration points.
+Extend Air to support **concurrent plans** with explicit coordination between agents. Currently, Air supports parallel execution of independent plans. This enhancement adds the ability for agents to wait on and signal each other at pre-planned integration points.
 
 ## Goals
 

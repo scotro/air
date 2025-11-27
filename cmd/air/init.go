@@ -12,7 +12,7 @@ import (
 
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Initialize project for AIR workflow",
+	Short: "Initialize project for Air workflow",
 	Long:  `Creates .air/ directory with context and plans subdirectories.`,
 	RunE:  runInit,
 }
@@ -47,7 +47,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Println("\nInitialized AIR workflow. Next steps:")
+	fmt.Println("\nInitialized Air workflow. Next steps:")
 	fmt.Println("  air plan              # Start planning session")
 	fmt.Println("  air plan list         # View plans")
 	fmt.Println("  air run <names...>    # Launch agents")
@@ -82,7 +82,7 @@ func updateGitignore() error {
 		f.WriteString("\n")
 	}
 
-	f.WriteString("\n# AIR workflow\n")
+	f.WriteString("\n# Air workflow\n")
 	f.WriteString(entry + "\n")
 	fmt.Println("Updated .gitignore")
 
