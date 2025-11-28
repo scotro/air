@@ -455,6 +455,44 @@ func TestRun_BlocksOnInvalidDependencies(t *testing.T) {
 	}
 }
 
+func TestRun_DryRunValidatesWithoutCreatingResources(t *testing.T) {
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
+
+	env.run(t, nil, "init")
+
+	// Create test plan
+	airDir := env.airDir()
+	os.WriteFile(filepath.Join(airDir, "plans", "test.md"), []byte("# Test\n**Objective:** Test"), 0644)
+
+	// Run with --dry-run
+	out, err := env.run(t, nil, "run", "--dry-run", "test")
+	if err != nil {
+		t.Fatalf("dry run failed: %v\n%s", err, out)
+	}
+
+	// Check output shows validation passed
+	if !strings.Contains(out, "Validation passed") {
+		t.Errorf("output should show validation passed, got: %s", out)
+	}
+	if !strings.Contains(out, "test (branch: air/test)") {
+		t.Errorf("output should show plan and branch, got: %s", out)
+	}
+
+	// Verify NO worktree was created
+	wtPath := filepath.Join(airDir, "worktrees", "test")
+	if _, err := os.Stat(wtPath); !os.IsNotExist(err) {
+		t.Errorf("dry run should not create worktree, but %s exists", wtPath)
+	}
+
+	// Verify NO agents directory was created
+	agentsPath := filepath.Join(airDir, "agents", "test")
+	if _, err := os.Stat(agentsPath); !os.IsNotExist(err) {
+		t.Errorf("dry run should not create agents dir, but %s exists", agentsPath)
+	}
+}
+
 func TestRun_CreatesWorktreeDirectory(t *testing.T) {
 	t.Parallel()
 	env := setupTestRepo(t)
