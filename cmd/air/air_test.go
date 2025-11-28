@@ -420,6 +420,41 @@ func TestRun_FailsForMissingPlan(t *testing.T) {
 	}
 }
 
+func TestRun_BlocksOnInvalidDependencies(t *testing.T) {
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
+
+	env.run(t, nil, "init")
+
+	airDir := env.airDir()
+	plansDir := filepath.Join(airDir, "plans")
+
+	// Create invalid plan - waits on channel that nobody signals
+	corePlan := `# Plan: core
+
+**Objective:** Build core
+
+## Dependencies
+
+**Waits on:**
+- ` + "`setup-complete`" + ` - Need scaffolding (but no setup plan!)
+`
+	os.WriteFile(filepath.Join(plansDir, "core.md"), []byte(corePlan), 0644)
+
+	// Run should fail with validation error
+	out, err := env.run(t, nil, "run", "core")
+	if err == nil {
+		t.Fatal("run should have failed for invalid dependencies")
+	}
+	if !strings.Contains(out, "Dependency validation failed") {
+		t.Errorf("error should mention validation failure, got: %s", out)
+	}
+	if !strings.Contains(out, "setup-complete") {
+		t.Errorf("error should mention missing channel, got: %s", out)
+	}
+}
+
 func TestRun_CreatesWorktreeDirectory(t *testing.T) {
 	t.Parallel()
 	env := setupTestRepo(t)

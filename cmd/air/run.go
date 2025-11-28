@@ -70,6 +70,17 @@ func runRun(cmd *cobra.Command, args []string) error {
 		plans = args
 	}
 
+	// Validate dependency graph before launching
+	_, validationErrs := ValidatePlans()
+	if len(validationErrs) > 0 {
+		fmt.Println("Dependency validation failed:")
+		for _, err := range validationErrs {
+			fmt.Printf("  ✗ %s\n", err)
+		}
+		fmt.Println("\nRun 'air plan validate' for details, or fix plans before running.")
+		return fmt.Errorf("invalid dependency graph")
+	}
+
 	// Get the absolute path of the project root
 	projectRoot, err := os.Getwd()
 	if err != nil {

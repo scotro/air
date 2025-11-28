@@ -415,7 +415,12 @@ setup → [core, features, dashboard] → integration
 ### After planning
 
 1. Use the Write tool to create each plan file in ` + "`" + `~/.air/<project>/plans/<name>.md` + "`" + ` (where ` + "`" + `<project>` + "`" + ` is the current directory name)
-2. Summarize what each agent will do
-3. If plans have dependencies, explain the dependency graph to the user
-4. Tell the user: "Exit Claude Code, then run: ` + "`" + `air run <name1> <name2> ...` + "`" + `"
+2. **Run ` + "`" + `air plan validate` + "`" + `** to verify the dependency graph is valid. This checks:
+   - Every channel waited on has exactly one plan that signals it
+   - No cycles exist in the dependency graph
+   - No channel is signaled by multiple plans
+   If validation fails, fix the plans before proceeding.
+3. Summarize what each agent will do
+4. If plans have dependencies, explain the dependency graph to the user
+5. Tell the user: "Exit Claude Code, then run: ` + "`" + `air run <name1> <name2> ...` + "`" + `"
 `
