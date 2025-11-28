@@ -131,6 +131,7 @@ func runPlan(cmd *cobra.Command, args []string) error {
 
 	// Launch claude with initial prompt
 	claudeCmd := exec.Command("claude",
+		"--allowedTools", "Bash(air plan:*)",
 		"--append-system-prompt", orchestrationPrompt,
 		"Begin orchestration. Ask me what I want to build.")
 	claudeCmd.Stdin = os.Stdin
