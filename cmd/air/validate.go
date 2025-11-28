@@ -26,13 +26,17 @@ func init() {
 
 // PlanDependencies represents the dependency information extracted from a plan
 type PlanDependencies struct {
-	Name    string
-	WaitsOn []string
-	Signals []string
+	Name       string
+	Repository string   // Target repository (required in workspace mode)
+	WaitsOn    []string
+	Signals    []string
 }
 
 // channelRegex matches backtick-wrapped channel names like `setup-complete`
 var channelRegex = regexp.MustCompile("`([^`]+)`")
+
+// repositoryRegex matches **Repository:** field value
+var repositoryRegex = regexp.MustCompile(`^\*\*Repository:\*\*\s*(.+)$`)
 
 // parsePlanDependencies extracts dependency information from plan markdown content
 func parsePlanDependencies(name, content string) PlanDependencies {
@@ -43,6 +47,12 @@ func parsePlanDependencies(name, content string) PlanDependencies {
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
+
+		// Check for Repository field
+		if matches := repositoryRegex.FindStringSubmatch(trimmed); len(matches) >= 2 {
+			deps.Repository = strings.TrimSpace(matches[1])
+			continue
+		}
 
 		// Detect section headers
 		if strings.HasPrefix(trimmed, "**Waits on:**") {
@@ -241,6 +251,11 @@ func loadAllPlanDependencies() ([]PlanDependencies, error) {
 
 // ValidatePlans loads all plans and validates their dependency graph
 func ValidatePlans() ([]PlanDependencies, []error) {
+	return ValidatePlansWithMode(nil)
+}
+
+// ValidatePlansWithMode loads all plans and validates them with mode awareness
+func ValidatePlansWithMode(info *WorkspaceInfo) ([]PlanDependencies, []error) {
 	plans, err := loadAllPlanDependencies()
 	if err != nil {
 		return nil, []error{err}
@@ -250,8 +265,49 @@ func ValidatePlans() ([]PlanDependencies, []error) {
 		return nil, nil
 	}
 
-	errs := validateDependencyGraph(plans)
+	var errs []error
+
+	// If workspace info provided, validate repository references
+	if info != nil && info.Mode == ModeWorkspace {
+		repoErrs := validateRepositoryReferences(plans, info)
+		errs = append(errs, repoErrs...)
+	}
+
+	// Validate dependency graph
+	graphErrs := validateDependencyGraph(plans)
+	errs = append(errs, graphErrs...)
+
 	return plans, errs
+}
+
+// validateRepositoryReferences checks that all plans have valid repository references
+func validateRepositoryReferences(plans []PlanDependencies, info *WorkspaceInfo) []error {
+	var errs []error
+
+	// Build set of valid repos
+	validRepos := make(map[string]bool)
+	for _, r := range info.Repos {
+		validRepos[r] = true
+	}
+
+	for _, p := range plans {
+		// In workspace mode, Repository field is required
+		if p.Repository == "" {
+			errs = append(errs, ValidationError{
+				Message: fmt.Sprintf("plan '%s' is missing required **Repository:** field (workspace mode)", p.Name),
+			})
+			continue
+		}
+
+		// Validate repo exists
+		if !validRepos[p.Repository] {
+			errs = append(errs, ValidationError{
+				Message: fmt.Sprintf("plan '%s' references unknown repository '%s' (available: %v)", p.Name, p.Repository, info.Repos),
+			})
+		}
+	}
+
+	return errs
 }
 
 func runPlanValidate(cmd *cobra.Command, args []string) error {
@@ -259,17 +315,32 @@ func runPlanValidate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not initialized (run 'air init' first)")
 	}
 
-	plans, errs := ValidatePlans()
+	// Detect mode for workspace-aware validation
+	info, err := detectMode()
+	if err != nil {
+		return fmt.Errorf("failed to detect mode: %w", err)
+	}
+
+	plans, errs := ValidatePlansWithMode(info)
 
 	if len(plans) == 0 {
 		fmt.Println("No plans found.")
 		return nil
 	}
 
+	// Print mode info
+	if info.Mode == ModeWorkspace {
+		fmt.Printf("Workspace: %s (%d repos)\n\n", info.Name, len(info.Repos))
+	}
+
 	// Print dependency summary
 	fmt.Println("Plans:")
 	for _, p := range plans {
-		fmt.Printf("  %s\n", p.Name)
+		if info.Mode == ModeWorkspace && p.Repository != "" {
+			fmt.Printf("  %s [repo: %s]\n", p.Name, p.Repository)
+		} else {
+			fmt.Printf("  %s\n", p.Name)
+		}
 		if len(p.WaitsOn) > 0 {
 			fmt.Printf("    waits on: %s\n", strings.Join(p.WaitsOn, ", "))
 		}

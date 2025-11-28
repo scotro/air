@@ -17,6 +17,8 @@ type ChannelPayload struct {
 	Branch    string    `json:"branch"`
 	Worktree  string    `json:"worktree"`
 	Agent     string    `json:"agent"`
+	Repo      string    `json:"repo,omitempty"`      // Source repo (workspace mode only)
+	Workspace string    `json:"workspace,omitempty"` // Workspace name (workspace mode only)
 	Timestamp time.Time `json:"timestamp"`
 }
 
@@ -179,12 +181,18 @@ func runAgentSignal(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Get workspace info from environment (if running in workspace mode)
+	repo := os.Getenv("AIR_REPO")
+	workspace := os.Getenv("AIR_WORKSPACE")
+
 	// Build and write payload
 	payload := &ChannelPayload{
 		SHA:       sha,
 		Branch:    branch,
 		Worktree:  worktree,
 		Agent:     agentID,
+		Repo:      repo,
+		Workspace: workspace,
 		Timestamp: time.Now().UTC(),
 	}
 
@@ -192,7 +200,11 @@ func runAgentSignal(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Signaled channel '%s' (branch: %s, sha: %s)\n", channel, branch, sha[:8])
+	if repo != "" {
+		fmt.Printf("Signaled channel '%s' (repo: %s, branch: %s, sha: %s)\n", channel, repo, branch, sha[:8])
+	} else {
+		fmt.Printf("Signaled channel '%s' (branch: %s, sha: %s)\n", channel, branch, sha[:8])
+	}
 	return nil
 }
 
@@ -218,13 +230,23 @@ func runAgentWait(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Print payload as JSON
-	data, err := json.MarshalIndent(payload, "", "  ")
-	if err != nil {
-		return err
+	// Print human-readable output
+	fmt.Printf("\nChannel '%s' signaled by agent '%s'\n", channel, payload.Agent)
+	if payload.Repo != "" {
+		fmt.Printf("Repository: %s\n", payload.Repo)
+	}
+	fmt.Printf("Branch: %s\n", payload.Branch)
+	fmt.Printf("Worktree: %s\n", payload.Worktree)
+	fmt.Printf("SHA: %s\n", payload.SHA)
+
+	// If cross-repo, provide guidance
+	currentRepo := os.Getenv("AIR_REPO")
+	if payload.Repo != "" && currentRepo != "" && payload.Repo != currentRepo {
+		fmt.Printf("\nNOTE: This is a cross-repo dependency (%s -> %s).\n", payload.Repo, currentRepo)
+		fmt.Printf("You can read the changes at the worktree path above.\n")
+		fmt.Printf("Use 'air agent merge' only for same-repo dependencies.\n")
 	}
 
-	fmt.Printf("Channel '%s' signaled:\n%s\n", channel, string(data))
 	return nil
 }
 
@@ -238,6 +260,21 @@ func runAgentMerge(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("channel '%s' has not been signaled yet", channel)
 		}
 		return err
+	}
+
+	// Check for cross-repo merge attempt (not supported)
+	currentRepo := os.Getenv("AIR_REPO")
+	if payload.Repo != "" && currentRepo != "" && payload.Repo != currentRepo {
+		return fmt.Errorf(`cross-repo merge not supported: channel '%s' is from repo '%s', but you are in repo '%s'
+
+For cross-repo dependencies:
+- Use 'air agent wait %s' to know when the dependency is ready
+- Read files from the dependency's worktree: %s
+- Update your dependency version if needed (e.g., go get, npm update)
+- Do NOT use 'air agent merge' across repos
+
+'merge' is only for dependencies within the SAME repository.`,
+			channel, payload.Repo, currentRepo, channel, payload.Worktree)
 	}
 
 	fmt.Printf("Merging branch %s from %s...\n", payload.Branch, payload.Agent)

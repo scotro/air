@@ -19,24 +19,16 @@ var statusCmd = &cobra.Command{
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
+	// Detect mode
+	info, err := detectMode()
+	if err != nil {
+		return fmt.Errorf("failed to detect mode: %w", err)
+	}
+
 	worktreesDir := getWorktreesDir()
 	channelsDir := getChannelsDir()
 
-	entries, err := os.ReadDir(worktreesDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			fmt.Println("No active agents. Run 'air run <plans>' to start.")
-			return nil
-		}
-		return fmt.Errorf("failed to read worktrees: %w", err)
-	}
-
-	if len(entries) == 0 {
-		fmt.Println("No active agents. Run 'air run <plans>' to start.")
-		return nil
-	}
-
-	// Collect done agents (check both done/<name>.json and <name>.json patterns)
+	// Collect done agents
 	doneAgents := make(map[string]bool)
 	doneDir := filepath.Join(channelsDir, "done")
 	if doneEntries, err := os.ReadDir(doneDir); err == nil {
@@ -46,47 +38,90 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
-	// Also check for done signals at root level (fallback for older format)
-	if channelEntries, err := os.ReadDir(channelsDir); err == nil {
-		for _, ce := range channelEntries {
-			if ce.IsDir() {
+
+	// Collect agents based on mode
+	type agentStatus struct {
+		name     string
+		repoName string // only in workspace mode
+		wtPath   string
+	}
+	var agents []agentStatus
+
+	if info.Mode == ModeWorkspace {
+		// Workspace mode: worktrees/<repo>/<plan>/
+		repoEntries, err := os.ReadDir(worktreesDir)
+		if err != nil {
+			if os.IsNotExist(err) {
+				fmt.Println("No active agents. Run 'air run' to start.")
+				return nil
+			}
+			return fmt.Errorf("failed to read worktrees: %w", err)
+		}
+
+		for _, repoEntry := range repoEntries {
+			if !repoEntry.IsDir() {
 				continue
 			}
-			name := strings.TrimSuffix(ce.Name(), ".json")
-			// Check if this matches a worktree name (likely a done signal)
-			for _, entry := range entries {
-				if entry.Name() == name {
-					doneAgents[name] = true
-				}
+			repoName := repoEntry.Name()
+			repoWorktreeDir := filepath.Join(worktreesDir, repoName)
+
+			planEntries, err := os.ReadDir(repoWorktreeDir)
+			if err != nil {
+				continue
 			}
+			for _, planEntry := range planEntries {
+				if !planEntry.IsDir() {
+					continue
+				}
+				agents = append(agents, agentStatus{
+					name:     planEntry.Name(),
+					repoName: repoName,
+					wtPath:   filepath.Join(repoWorktreeDir, planEntry.Name()),
+				})
+			}
+		}
+	} else {
+		// Single mode: worktrees/<plan>/
+		entries, err := os.ReadDir(worktreesDir)
+		if err != nil {
+			if os.IsNotExist(err) {
+				fmt.Println("No active agents. Run 'air run <plans>' to start.")
+				return nil
+			}
+			return fmt.Errorf("failed to read worktrees: %w", err)
+		}
+
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			agents = append(agents, agentStatus{
+				name:   entry.Name(),
+				wtPath: filepath.Join(worktreesDir, entry.Name()),
+			})
 		}
 	}
 
+	if len(agents) == 0 {
+		fmt.Println("No active agents. Run 'air run' to start.")
+		return nil
+	}
+
+	// Print header
+	if info.Mode == ModeWorkspace {
+		fmt.Printf("Workspace: %s\n\n", info.Name)
+	}
 	fmt.Println("Agents")
 	fmt.Println()
 
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		name := entry.Name()
-		wtPath := filepath.Join(worktreesDir, name)
-
+	for _, agent := range agents {
 		// Get last commit
-		logCmd := exec.Command("git", "-C", wtPath, "log", "-1", "--format=%s (%ar)")
+		logCmd := exec.Command("git", "-C", agent.wtPath, "log", "-1", "--format=%s (%ar)")
 		logOut, _ := logCmd.Output()
 		lastCommit := strings.TrimSpace(string(logOut))
 
-		// Check if claude is running in this worktree
-		isRunning := false
-		pgrepCmd := exec.Command("pgrep", "-f", "claude.*"+wtPath)
-		if err := pgrepCmd.Run(); err == nil {
-			isRunning = true
-		}
-
 		// Get uncommitted changes count
-		diffCmd := exec.Command("git", "-C", wtPath, "status", "--porcelain")
+		diffCmd := exec.Command("git", "-C", agent.wtPath, "status", "--porcelain")
 		var diffOut bytes.Buffer
 		diffCmd.Stdout = &diffOut
 		diffCmd.Run()
@@ -96,28 +131,30 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		}
 
 		// Determine status
-		isDone := doneAgents[name]
+		isDone := doneAgents[agent.name]
 
 		var statusIcon, statusText string
 		if isDone {
 			statusIcon = "✓"
 			statusText = "done"
 		} else {
-			// Show all non-done agents as "running" - we can't reliably detect
-			// if an agent is waiting for user input vs actively working
 			statusIcon = "●"
 			statusText = "running"
 		}
-		_ = isRunning // still used for potential future features
 
 		// Build info line
-		info := lastCommit
-		if changes > 0 {
-			info += fmt.Sprintf(", %d uncommitted", changes)
+		agentLabel := agent.name
+		if info.Mode == ModeWorkspace && agent.repoName != "" {
+			agentLabel = fmt.Sprintf("%s [%s]", agent.name, agent.repoName)
 		}
 
-		fmt.Printf("  %s %-16s %s\n", statusIcon, name, statusText)
-		fmt.Printf("    %s\n", info)
+		infoLine := lastCommit
+		if changes > 0 {
+			infoLine += fmt.Sprintf(", %d uncommitted", changes)
+		}
+
+		fmt.Printf("  %s %-24s %s\n", statusIcon, agentLabel, statusText)
+		fmt.Printf("    %s\n", infoLine)
 	}
 
 	// Show coordination channels (exclude done markers)
