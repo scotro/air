@@ -400,15 +400,51 @@ However, some projects are complex enough that components need to be wired toget
 - A main.go that needs to connect several components
 - You're tempted to tell the user "after merging, you'll need to wire X, Y, Z together"
 
-**Integration plan structure:**
-- Waits on completion signals from all parallel plans
-- Wires components together (imports, initialization, main.go)
-- Runs final build to verify everything connects
-- Does NOT signal anything (it's the final plan)
+**CRITICAL: Agent Isolation Model**
 
-**Example dependency graph:**
+Each agent runs in a completely isolated git worktree. Agents CANNOT see each other's work - the ONLY way to access another agent's code is through channel signals:
+1. Agent A signals ` + "`" + `channelX` + "`" + ` after committing
+2. Agent B runs ` + "`" + `air agent wait channelX` + "`" + ` then ` + "`" + `air agent merge channelX` + "`" + `
+3. Now Agent B has Agent A's code in its worktree
+
+There is NO other way. Agents cannot check the filesystem to see if other agents are "done" - they will only see their own isolated worktree.
+
+**Integration plan requirements:**
+
+1. **Every parallel plan MUST signal a completion channel.** If you have plans ` + "`" + `core` + "`" + `, ` + "`" + `middleware` + "`" + `, ` + "`" + `dashboard` + "`" + ` running in parallel, each MUST have:
+   ` + "```" + `markdown
+   **Signals:**
+   - ` + "`" + `core-complete` + "`" + `       # (or middleware-complete, dashboard-complete)
+   ` + "```" + `
+
+2. **The integration plan MUST wait on ALL parallel plans:**
+   ` + "```" + `markdown
+   **Waits on:**
+   - ` + "`" + `setup-complete` + "`" + `
+   - ` + "`" + `core-complete` + "`" + `
+   - ` + "`" + `middleware-complete` + "`" + `
+   - ` + "`" + `dashboard-complete` + "`" + `
+   ` + "```" + `
+
+3. **The integration plan does NOT signal anything** (it's the final plan)
+
+**Example with integration plan:**
 ` + "```" + `
-setup → [core, features, dashboard] → integration
+Plan: setup
+  Waits on: (none)
+  Signals: setup-complete
+
+Plan: feature-a
+  Waits on: setup-complete
+  Signals: feature-a-complete
+
+Plan: feature-b
+  Waits on: setup-complete
+  Signals: feature-b-complete
+
+Plan: integration
+  Waits on: setup-complete, feature-a-complete, feature-b-complete
+  Signals: (none - final plan)
 ` + "```" + `
 
 **Important:** The integration plan is agent work, not git merging. ` + "`" + `air integrate` + "`" + ` handles git merging after all agents (including the integration agent) complete.
