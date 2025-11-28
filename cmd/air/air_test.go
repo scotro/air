@@ -667,7 +667,9 @@ func TestIntegrate_FailsIfNotInitialized(t *testing.T) {
 func TestIntegrate_CommandArgsAreCorrectlyStructured(t *testing.T) {
 	t.Parallel()
 
-	cmd := buildIntegrateCommand("test prompt")
+	// Test single mode
+	info := &WorkspaceInfo{Mode: ModeSingle, Name: "test", Root: "/tmp/test"}
+	cmd := buildIntegrateCommand("test prompt", info)
 	args := cmd.Args
 
 	// args[0] is the command itself ("claude")

@@ -37,6 +37,48 @@ func TestParsePlanDependencies_NoDependencies(t *testing.T) {
 	}
 }
 
+func TestParsePlanDependencies_WithRepository(t *testing.T) {
+	t.Parallel()
+
+	content := `# Plan: schema-update
+
+**Repository:** schema
+
+**Objective:** Update schema definitions
+
+## Boundaries
+
+**In scope:**
+- protos/
+`
+
+	deps := parsePlanDependencies("schema-update", content)
+
+	if deps.Name != "schema-update" {
+		t.Errorf("expected name 'schema-update', got %q", deps.Name)
+	}
+	if deps.Repository != "schema" {
+		t.Errorf("expected repository 'schema', got %q", deps.Repository)
+	}
+}
+
+func TestParsePlanDependencies_RepositoryWithWhitespace(t *testing.T) {
+	t.Parallel()
+
+	content := `# Plan: usersvc-feature
+
+**Repository:**   usersvc
+
+**Objective:** Add feature
+`
+
+	deps := parsePlanDependencies("usersvc-feature", content)
+
+	if deps.Repository != "usersvc" {
+		t.Errorf("expected repository 'usersvc', got %q", deps.Repository)
+	}
+}
+
 func TestParsePlanDependencies_WithDependencies(t *testing.T) {
 	t.Parallel()
 
@@ -122,6 +164,83 @@ func TestValidateDependencyGraph_Valid(t *testing.T) {
 
 	if len(errs) != 0 {
 		t.Errorf("expected no errors, got %v", errs)
+	}
+}
+
+// ============================================================================
+// validateRepositoryReferences tests
+// ============================================================================
+
+func TestValidateRepositoryReferences_Valid(t *testing.T) {
+	t.Parallel()
+
+	info := &WorkspaceInfo{
+		Mode:  ModeWorkspace,
+		Name:  "myteam",
+		Repos: []string{"authapi", "schema", "usersvc"},
+	}
+
+	plans := []PlanDependencies{
+		{Name: "schema-update", Repository: "schema"},
+		{Name: "usersvc-feature", Repository: "usersvc"},
+		{Name: "auth-fix", Repository: "authapi"},
+	}
+
+	errs := validateRepositoryReferences(plans, info)
+
+	if len(errs) != 0 {
+		t.Errorf("expected no errors, got %v", errs)
+	}
+}
+
+func TestValidateRepositoryReferences_MissingRepository(t *testing.T) {
+	t.Parallel()
+
+	info := &WorkspaceInfo{
+		Mode:  ModeWorkspace,
+		Name:  "myteam",
+		Repos: []string{"authapi", "schema", "usersvc"},
+	}
+
+	plans := []PlanDependencies{
+		{Name: "schema-update", Repository: "schema"},
+		{Name: "usersvc-feature", Repository: ""}, // Missing!
+	}
+
+	errs := validateRepositoryReferences(plans, info)
+
+	if len(errs) != 1 {
+		t.Fatalf("expected 1 error, got %v", errs)
+	}
+	if !strings.Contains(errs[0].Error(), "missing required") {
+		t.Errorf("error should mention 'missing required': %v", errs[0])
+	}
+}
+
+func TestValidateRepositoryReferences_UnknownRepository(t *testing.T) {
+	t.Parallel()
+
+	info := &WorkspaceInfo{
+		Mode:  ModeWorkspace,
+		Name:  "myteam",
+		Repos: []string{"authapi", "schema", "usersvc"},
+	}
+
+	plans := []PlanDependencies{
+		{Name: "schema-update", Repository: "schema"},
+		{Name: "billing-feature", Repository: "billing"}, // Doesn't exist!
+	}
+
+	errs := validateRepositoryReferences(plans, info)
+
+	if len(errs) != 1 {
+		t.Fatalf("expected 1 error, got %v", errs)
+	}
+	if !strings.Contains(errs[0].Error(), "unknown repository") {
+		t.Errorf("error should mention 'unknown repository': %v", errs[0])
+	}
+	if !strings.Contains(errs[0].Error(), "billing") {
+		t.Errorf("error should mention 'billing': %v", errs[0])
 	}
 }
 

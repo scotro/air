@@ -34,6 +34,12 @@ func runRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("not initialized (run 'air init' first)")
 	}
 
+	// Detect mode
+	info, err := detectMode()
+	if err != nil {
+		return fmt.Errorf("failed to detect mode: %w", err)
+	}
+
 	plansDir := getPlansDir()
 
 	// Get available plans
@@ -59,9 +65,9 @@ func runRun(cmd *cobra.Command, args []string) error {
 	}
 
 	// Handle 'all'
-	var plans []string
+	var planNames []string
 	if len(args) == 1 && args[0] == "all" {
-		plans = available
+		planNames = available
 	} else {
 		// Validate plan names
 		for _, name := range args {
@@ -69,11 +75,11 @@ func runRun(cmd *cobra.Command, args []string) error {
 				return fmt.Errorf("plan '%s' not found", name)
 			}
 		}
-		plans = args
+		planNames = args
 	}
 
-	// Validate dependency graph before launching
-	_, validationErrs := ValidatePlans()
+	// Validate dependency graph before launching (with mode awareness)
+	planDeps, validationErrs := ValidatePlansWithMode(info)
 	if len(validationErrs) > 0 {
 		fmt.Println("Dependency validation failed:")
 		for _, err := range validationErrs {
@@ -83,20 +89,25 @@ func runRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid dependency graph")
 	}
 
+	// Build a map of plan name -> PlanDependencies for repo lookup
+	planInfoMap := make(map[string]PlanDependencies)
+	for _, pd := range planDeps {
+		planInfoMap[pd.Name] = pd
+	}
+
 	// Dry run: show what would happen and exit
 	if dryRun {
 		fmt.Println("Validation passed. Would launch agents for:")
-		for _, name := range plans {
-			fmt.Printf("  %s (branch: air/%s)\n", name, name)
+		for _, name := range planNames {
+			pd := planInfoMap[name]
+			if info.Mode == ModeWorkspace && pd.Repository != "" {
+				fmt.Printf("  %s [repo: %s] (branch: air/%s)\n", name, pd.Repository, name)
+			} else {
+				fmt.Printf("  %s (branch: air/%s)\n", name, name)
+			}
 		}
-		fmt.Printf("\nRun without --dry-run to launch %d agents.\n", len(plans))
+		fmt.Printf("\nRun without --dry-run to launch %d agents.\n", len(planNames))
 		return nil
-	}
-
-	// Get the absolute path of the project root
-	projectRoot, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get working directory: %w", err)
 	}
 
 	// Read context once
@@ -133,24 +144,55 @@ func runRun(cmd *cobra.Command, args []string) error {
 	// Settings: disable co-authored-by to keep commits clean
 	settings := `--settings '{"includeCoAuthoredBy": false}'`
 
+	// Track worktree paths for tmux
+	type agentInfo struct {
+		name       string
+		wtPath     string
+		agentDir   string
+		repoName   string
+		repoPath   string
+	}
+	var agents []agentInfo
+
 	// Create worktrees for each plan
-	for _, name := range plans {
-		wtPath := filepath.Join(worktreesDir, name)
+	for _, name := range planNames {
+		pd := planInfoMap[name]
+
+		// Determine target repo and paths based on mode
+		var repoName, repoPath, wtPath string
+		if info.Mode == ModeWorkspace {
+			repoName = pd.Repository
+			repoPath = filepath.Join(info.Root, repoName)
+			// In workspace mode: worktrees/<repo>/<plan>
+			repoWorktreeDir := filepath.Join(worktreesDir, repoName)
+			os.MkdirAll(repoWorktreeDir, 0755)
+			wtPath = filepath.Join(repoWorktreeDir, name)
+		} else {
+			repoName = ""
+			repoPath = info.Root
+			// In single mode: worktrees/<plan>
+			wtPath = filepath.Join(worktreesDir, name)
+		}
+
 		branch := "air/" + name
 
 		// Check if worktree already exists
 		if _, err := os.Stat(wtPath); err == nil {
 			fmt.Printf("Worktree %s already exists\n", name)
 		} else {
-			// Create worktree
+			// Create worktree in the target repo
 			createCmd := exec.Command("git", "worktree", "add", wtPath, "-b", branch)
-			createCmd.Dir = projectRoot
+			createCmd.Dir = repoPath
 			createCmd.Stdout = os.Stdout
 			createCmd.Stderr = os.Stderr
 			if err := createCmd.Run(); err != nil {
 				return fmt.Errorf("failed to create worktree for %s: %w", name, err)
 			}
-			fmt.Printf("Created worktree: %s (branch: %s)\n", wtPath, branch)
+			if info.Mode == ModeWorkspace {
+				fmt.Printf("Created worktree: %s [repo: %s] (branch: %s)\n", name, repoName, branch)
+			} else {
+				fmt.Printf("Created worktree: %s (branch: %s)\n", wtPath, branch)
+			}
 		}
 
 		// Read plan content
@@ -174,26 +216,43 @@ func runRun(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to write assignment for %s: %w", name, err)
 		}
 
-		// Generate launcher script
-		// Include SSH_AUTH_SOCK so git operations work in tmux (needed for WSL/Linux)
+		// Generate launcher script with workspace-aware environment variables
 		sshAuthSock := os.Getenv("SSH_AUTH_SOCK")
 		sshExport := ""
 		if sshAuthSock != "" {
 			sshExport = fmt.Sprintf("export SSH_AUTH_SOCK=\"%s\"\n", sshAuthSock)
 		}
+
+		// Workspace-specific env vars
+		workspaceEnv := ""
+		if info.Mode == ModeWorkspace {
+			workspaceEnv = fmt.Sprintf(`export AIR_REPO="%s"
+export AIR_WORKSPACE="%s"
+export AIR_WORKSPACE_ROOT="%s"
+`, repoName, info.Name, info.Root)
+		}
+
 		launcherScript := fmt.Sprintf(`#!/bin/bash
-%sexport AIR_AGENT_ID="%s"
+%s%sexport AIR_AGENT_ID="%s"
 export AIR_WORKTREE="%s"
 export AIR_PROJECT_ROOT="%s"
 export AIR_CHANNELS_DIR="%s"
 cd "$AIR_WORKTREE"
 exec claude %s %s %s --append-system-prompt "$(cat %s/context)" "$(cat %s/assignment)"
-`, sshExport, name, wtPath, projectRoot, channelsDir, permFlag, allowedTools, settings, agentDir, agentDir)
+`, sshExport, workspaceEnv, name, wtPath, repoPath, channelsDir, permFlag, allowedTools, settings, agentDir, agentDir)
 
 		scriptPath := filepath.Join(agentDir, "launch.sh")
 		if err := os.WriteFile(scriptPath, []byte(launcherScript), 0755); err != nil {
 			return fmt.Errorf("failed to write launcher script for %s: %w", name, err)
 		}
+
+		agents = append(agents, agentInfo{
+			name:     name,
+			wtPath:   wtPath,
+			agentDir: agentDir,
+			repoName: repoName,
+			repoPath: repoPath,
+		})
 	}
 
 	// Start tmux session
@@ -202,39 +261,35 @@ exec claude %s %s %s --append-system-prompt "$(cat %s/context)" "$(cat %s/assign
 	// Kill existing session if present
 	exec.Command("tmux", "kill-session", "-t", sessionName).Run()
 
-	// Create new session with first plan
-	firstPlan := plans[0]
-	firstWtPath := filepath.Join(worktreesDir, firstPlan)
-	firstAgentDir := filepath.Join(agentsDir, firstPlan)
+	// Create new session with first agent
+	firstAgent := agents[0]
 
 	// Create session
-	tmuxNew := exec.Command("tmux", "new-session", "-d", "-s", sessionName, "-n", firstPlan, "-c", firstWtPath)
+	tmuxNew := exec.Command("tmux", "new-session", "-d", "-s", sessionName, "-n", firstAgent.name, "-c", firstAgent.wtPath)
 	if err := tmuxNew.Run(); err != nil {
 		return fmt.Errorf("failed to create tmux session: %w", err)
 	}
 
-	// Run launcher script for first plan
-	exec.Command("tmux", "send-keys", "-t", sessionName+":"+firstPlan, firstAgentDir+"/launch.sh", "Enter").Run()
+	// Run launcher script for first agent
+	exec.Command("tmux", "send-keys", "-t", sessionName+":"+firstAgent.name, firstAgent.agentDir+"/launch.sh", "Enter").Run()
 
-	// Create windows for remaining plans
-	for _, name := range plans[1:] {
-		wtPath := filepath.Join(worktreesDir, name)
-		agentDir := filepath.Join(agentsDir, name)
-
+	// Create windows for remaining agents
+	for _, agent := range agents[1:] {
 		// Create window
-		exec.Command("tmux", "new-window", "-t", sessionName, "-n", name, "-c", wtPath).Run()
+		exec.Command("tmux", "new-window", "-t", sessionName, "-n", agent.name, "-c", agent.wtPath).Run()
 
 		// Run launcher script
-		exec.Command("tmux", "send-keys", "-t", sessionName+":"+name, agentDir+"/launch.sh", "Enter").Run()
+		exec.Command("tmux", "send-keys", "-t", sessionName+":"+agent.name, agent.agentDir+"/launch.sh", "Enter").Run()
 	}
 
-	// Create dashboard window (before the agent windows so agents are more prominent)
-	exec.Command("tmux", "new-window", "-t", sessionName, "-n", "dash", "-c", projectRoot).Run()
+	// Create dashboard window
+	dashDir := info.Root
+	exec.Command("tmux", "new-window", "-t", sessionName, "-n", "dash", "-c", dashDir).Run()
 
 	// Select first agent window
-	exec.Command("tmux", "select-window", "-t", sessionName+":"+firstPlan).Run()
+	exec.Command("tmux", "select-window", "-t", sessionName+":"+firstAgent.name).Run()
 
-	fmt.Printf("\nLaunched %d agents in tmux session '%s'\n", len(plans), sessionName)
+	fmt.Printf("\nLaunched %d agents in tmux session '%s'\n", len(agents), sessionName)
 	fmt.Println("Attach with: tmux attach -t", sessionName)
 
 	// Attach to session
