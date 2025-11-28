@@ -34,7 +34,7 @@ go install github.com/scotro/air/cmd/air@latest
 
 ## Getting Started
 
-Follow the **[Tutorial](tutorial.md)** to build a Redis clone in ~1 hour using parallel agents. You'll learn the full workflow: `init` → `plan` → `run` → `integrate` → `clean`.
+Follow the **[Tutorial](tutorial-gateway.md)** to build a working API gateway with a simple observability dashboard in 30 minutes using parallel agents. You'll learn the full workflow: `init` → `plan` → `run` → `integrate` → `clean`.
 
 ## Usage
 
