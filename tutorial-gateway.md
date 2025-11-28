@@ -1,6 +1,6 @@
 # Tutorial: Build an API Gateway with Air
 
-Build a working API gateway with live dashboard in ~40 minutes using concurrent AI agents.
+Build a working API gateway with live dashboard in ~30 minutes using concurrent AI agents.
 
 ## What You'll Build
 
@@ -17,7 +17,7 @@ A Go API gateway that supports:
 ┌─────────────────────────────────────────────────────────┐
 │  Gateway Dashboard                    localhost:8080    │
 ├─────────────────────────────────────────────────────────┤
-│  Requests/sec: 47    │  Avg latency: 142ms   │  ✓ 3/3  │
+│  Requests/sec: 47    │  Avg latency: 142ms   │  ✓ 3/3   │
 ├─────────────────────────────────────────────────────────┤
 │  Live Request Stream                                    │
 │  12:04:32  GET /demo  → httpbin, users, posts  [147ms]  │
@@ -157,7 +157,7 @@ With a real project, you'll want to ensure you are on an integration or feature 
 
 Build and run.
 
-NOTE: These examples are for demonstration purposes. Ask claude for to provide some hands-on test examples.
+> **NOTE:** These examples are for demonstration purposes. Ask claude for to provide some hands-on test examples.
 
 ```bash
 make build
