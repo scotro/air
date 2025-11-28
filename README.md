@@ -36,7 +36,16 @@ go install github.com/scotro/air/cmd/air@latest
 
 Follow the **[Tutorial](tutorial-gateway.md)** to build a working API gateway with a simple observability dashboard in 30 minutes using parallel agents. You'll learn the full workflow: `init` → `plan` → `run` → `integrate` → `clean`.
 
-### Multi-repo workspaces
+## Usage
+
+### Initialize a project
+
+```bash
+cd ~/my-project
+air init
+```
+
+#### Multi-repo workspaces
 
 Air supports coordinating work across multiple repositories:
 
@@ -55,14 +64,6 @@ air init
 
 Air auto-detects repos as direct children and enables cross-repo planning and coordination.
 
-## Usage
-
-### Initialize a project
-
-```bash
-cd ~/my-project
-air init
-```
 
 ### Plan work
 
