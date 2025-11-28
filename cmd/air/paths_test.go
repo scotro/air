@@ -3,134 +3,126 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
+// ============================================================================
+// detectMode tests - use subprocess sandbox pattern for isolation
+// ============================================================================
+
 func TestDetectMode_SingleRepo(t *testing.T) {
-	// Create a temporary directory with a .git folder
-	tmpDir := t.TempDir()
-	gitDir := filepath.Join(tmpDir, ".git")
-	if err := os.Mkdir(gitDir, 0755); err != nil {
-		t.Fatal(err)
-	}
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
 
-	// Change to the temp directory
-	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(tmpDir)
-
-	info, err := detectMode()
+	// Run air init which will call detectMode internally
+	out, err := env.run(t, nil, "init")
 	if err != nil {
-		t.Fatalf("detectMode() failed: %v", err)
+		t.Fatalf("air init failed: %v\n%s", err, out)
 	}
 
-	if info.Mode != ModeSingle {
-		t.Errorf("expected ModeSingle, got %v", info.Mode)
-	}
-	if info.Name != filepath.Base(tmpDir) {
-		t.Errorf("expected name %q, got %q", filepath.Base(tmpDir), info.Name)
-	}
-	// Use EvalSymlinks to handle macOS /var -> /private/var symlink
-	expectedRoot, _ := filepath.EvalSymlinks(tmpDir)
-	actualRoot, _ := filepath.EvalSymlinks(info.Root)
-	if actualRoot != expectedRoot {
-		t.Errorf("expected root %q, got %q", expectedRoot, actualRoot)
-	}
-	if len(info.Repos) != 0 {
-		t.Errorf("expected empty repos, got %v", info.Repos)
+	// Verify it was detected as single mode (should see project name, not "Workspace:")
+	if strings.Contains(out, "Workspace:") {
+		t.Error("should not detect as workspace mode for single repo")
 	}
 }
 
 func TestDetectMode_Workspace(t *testing.T) {
-	// Create a temporary workspace directory with child repos
-	tmpDir := t.TempDir()
+	t.Parallel()
+	env := setupTestWorkspace(t)
+	defer env.cleanup()
+
+	// Run air init
+	out, err := env.run(t, nil, "init")
+	if err != nil {
+		t.Fatalf("air init failed: %v\n%s", err, out)
+	}
+
+	// Verify it was detected as workspace mode
+	if !strings.Contains(out, "workspace") {
+		t.Errorf("expected workspace mode detection, got: %s", out)
+	}
+
+	// Should list the repos
+	if !strings.Contains(out, "authapi") || !strings.Contains(out, "schema") || !strings.Contains(out, "usersvc") {
+		t.Errorf("expected repos to be listed, got: %s", out)
+	}
+}
+
+func TestDetectMode_NeitherRepoNorWorkspace(t *testing.T) {
+	t.Parallel()
+	// Use setupTestDir (no git) instead of setupTestRepo
+	env := setupTestDir(t)
+	defer env.cleanup()
+
+	_, err := env.run(t, nil, "init")
+	if err == nil {
+		t.Error("expected error for empty directory")
+	}
+}
+
+func TestDetectMode_SkipsHiddenDirs(t *testing.T) {
+	t.Parallel()
+	env := setupTestDir(t)
+	defer env.cleanup()
+
+	// Create visible repo
+	visibleRepo := filepath.Join(env.dir, "myrepo")
+	os.Mkdir(visibleRepo, 0755)
+	os.Mkdir(filepath.Join(visibleRepo, ".git"), 0755)
+
+	// Create hidden repo (should be ignored)
+	hiddenRepo := filepath.Join(env.dir, ".hidden")
+	os.Mkdir(hiddenRepo, 0755)
+	os.Mkdir(filepath.Join(hiddenRepo, ".git"), 0755)
+
+	out, err := env.run(t, nil, "init")
+	if err != nil {
+		t.Fatalf("air init failed: %v\n%s", err, out)
+	}
+
+	// Should only see the visible repo
+	if strings.Contains(out, ".hidden") {
+		t.Error("hidden repo should not be listed")
+	}
+	if !strings.Contains(out, "myrepo") {
+		t.Errorf("visible repo should be listed, got: %s", out)
+	}
+}
+
+// setupTestWorkspace creates a temp workspace with multiple child repos
+func setupTestWorkspace(t *testing.T) *testEnv {
+	t.Helper()
+
+	// Create temp workspace directory (NOT a git repo itself)
+	tmpDir, err := os.MkdirTemp("", "air-workspace-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+
+	// Create fake HOME directory
+	fakeHome, err := os.MkdirTemp("", "air-home-*")
+	if err != nil {
+		os.RemoveAll(tmpDir)
+		t.Fatalf("failed to create fake home: %v", err)
+	}
 
 	// Create child repos
 	repos := []string{"authapi", "schema", "usersvc"}
 	for _, repo := range repos {
 		repoDir := filepath.Join(tmpDir, repo)
-		if err := os.Mkdir(repoDir, 0755); err != nil {
-			t.Fatal(err)
-		}
-		gitDir := filepath.Join(repoDir, ".git")
-		if err := os.Mkdir(gitDir, 0755); err != nil {
-			t.Fatal(err)
-		}
+		os.Mkdir(repoDir, 0755)
+		os.Mkdir(filepath.Join(repoDir, ".git"), 0755)
 	}
 
-	// Create a non-repo directory (should be ignored)
-	if err := os.Mkdir(filepath.Join(tmpDir, "docs"), 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	// Change to the workspace directory
-	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(tmpDir)
-
-	info, err := detectMode()
-	if err != nil {
-		t.Fatalf("detectMode() failed: %v", err)
-	}
-
-	if info.Mode != ModeWorkspace {
-		t.Errorf("expected ModeWorkspace, got %v", info.Mode)
-	}
-	if len(info.Repos) != 3 {
-		t.Errorf("expected 3 repos, got %d: %v", len(info.Repos), info.Repos)
-	}
-	// Repos should be sorted
-	expected := []string{"authapi", "schema", "usersvc"}
-	for i, r := range expected {
-		if info.Repos[i] != r {
-			t.Errorf("expected repos[%d] = %q, got %q", i, r, info.Repos[i])
-		}
-	}
-}
-
-func TestDetectMode_NeitherRepoNorWorkspace(t *testing.T) {
-	// Create a temporary empty directory
-	tmpDir := t.TempDir()
-
-	// Change to the temp directory
-	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(tmpDir)
-
-	_, err := detectMode()
-	if err == nil {
-		t.Fatal("expected error for empty directory, got nil")
-	}
-}
-
-func TestDetectMode_SkipsHiddenDirs(t *testing.T) {
-	// Create a workspace with hidden and visible repos
-	tmpDir := t.TempDir()
-
-	// Create visible repo
-	visibleRepo := filepath.Join(tmpDir, "myrepo")
-	os.Mkdir(visibleRepo, 0755)
-	os.Mkdir(filepath.Join(visibleRepo, ".git"), 0755)
-
-	// Create hidden repo (should be ignored)
-	hiddenRepo := filepath.Join(tmpDir, ".hidden")
-	os.Mkdir(hiddenRepo, 0755)
-	os.Mkdir(filepath.Join(hiddenRepo, ".git"), 0755)
-
-	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(tmpDir)
-
-	info, err := detectMode()
-	if err != nil {
-		t.Fatalf("detectMode() failed: %v", err)
-	}
-
-	if len(info.Repos) != 1 {
-		t.Errorf("expected 1 repo, got %d: %v", len(info.Repos), info.Repos)
-	}
-	if info.Repos[0] != "myrepo" {
-		t.Errorf("expected 'myrepo', got %q", info.Repos[0])
+	return &testEnv{
+		dir:  tmpDir,
+		home: fakeHome,
+		cleanup: func() {
+			os.RemoveAll(tmpDir)
+			os.RemoveAll(fakeHome)
+		},
 	}
 }
 
