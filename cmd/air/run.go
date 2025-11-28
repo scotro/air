@@ -21,9 +21,11 @@ With no arguments, shows available plans.`,
 }
 
 var noAutoAccept bool
+var dryRun bool
 
 func init() {
 	runCmd.Flags().BoolVar(&noAutoAccept, "no-auto-accept", false, "Disable auto-accept mode (require permission for edits)")
+	runCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Validate plans and show what would run, without launching")
 }
 
 func runRun(cmd *cobra.Command, args []string) error {
@@ -68,6 +70,27 @@ func runRun(cmd *cobra.Command, args []string) error {
 			}
 		}
 		plans = args
+	}
+
+	// Validate dependency graph before launching
+	_, validationErrs := ValidatePlans()
+	if len(validationErrs) > 0 {
+		fmt.Println("Dependency validation failed:")
+		for _, err := range validationErrs {
+			fmt.Printf("  ✗ %s\n", err)
+		}
+		fmt.Println("\nRun 'air plan validate' for details, or fix plans before running.")
+		return fmt.Errorf("invalid dependency graph")
+	}
+
+	// Dry run: show what would happen and exit
+	if dryRun {
+		fmt.Println("Validation passed. Would launch agents for:")
+		for _, name := range plans {
+			fmt.Printf("  %s (branch: air/%s)\n", name, name)
+		}
+		fmt.Printf("\nRun without --dry-run to launch %d agents.\n", len(plans))
+		return nil
 	}
 
 	// Get the absolute path of the project root
@@ -152,14 +175,20 @@ func runRun(cmd *cobra.Command, args []string) error {
 		}
 
 		// Generate launcher script
+		// Include SSH_AUTH_SOCK so git operations work in tmux (needed for WSL/Linux)
+		sshAuthSock := os.Getenv("SSH_AUTH_SOCK")
+		sshExport := ""
+		if sshAuthSock != "" {
+			sshExport = fmt.Sprintf("export SSH_AUTH_SOCK=\"%s\"\n", sshAuthSock)
+		}
 		launcherScript := fmt.Sprintf(`#!/bin/bash
-export AIR_AGENT_ID="%s"
+%sexport AIR_AGENT_ID="%s"
 export AIR_WORKTREE="%s"
 export AIR_PROJECT_ROOT="%s"
 export AIR_CHANNELS_DIR="%s"
 cd "$AIR_WORKTREE"
 exec claude %s %s %s --append-system-prompt "$(cat %s/context)" "$(cat %s/assignment)"
-`, name, wtPath, projectRoot, channelsDir, permFlag, allowedTools, settings, agentDir, agentDir)
+`, sshExport, name, wtPath, projectRoot, channelsDir, permFlag, allowedTools, settings, agentDir, agentDir)
 
 		scriptPath := filepath.Join(agentDir, "launch.sh")
 		if err := os.WriteFile(scriptPath, []byte(launcherScript), 0755); err != nil {
