@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
@@ -58,6 +59,65 @@ func runPlan(cmd *cobra.Command, args []string) error {
 	// Check initialization
 	if !isInitialized() {
 		return fmt.Errorf("not initialized (run 'air init' first)")
+	}
+
+	// Check for existing state
+	worktrees := getExistingWorktrees()
+	plans := getExistingPlans()
+
+	// Case 1: Worktrees exist - work is in progress
+	if len(worktrees) > 0 {
+		fmt.Println("Work is already in progress from a previous session.")
+		fmt.Println("\nTo continue: use `air status` or `tmux attach -t air`")
+		fmt.Println("To start fresh: run `air clean` first")
+		return nil
+	}
+
+	// Case 2: Plans exist but no worktrees - offer to extend or start fresh
+	if len(plans) > 0 {
+		fmt.Println("Found existing plans:")
+		plansDir := getPlansDir()
+		for _, name := range plans {
+			// Read objective from plan
+			content, _ := os.ReadFile(filepath.Join(plansDir, name+".md"))
+			lines := strings.Split(string(content), "\n")
+			objective := ""
+			for _, line := range lines {
+				if strings.HasPrefix(line, "**Objective:**") {
+					objective = strings.TrimPrefix(line, "**Objective:**")
+					objective = strings.TrimSpace(objective)
+					break
+				}
+			}
+			fmt.Printf("  %-15s %s\n", name, objective)
+		}
+
+		fmt.Println("\nAre you:")
+		fmt.Println("  [e] Extending/modifying these plans")
+		fmt.Println("  [c] Starting fresh")
+		fmt.Print("\nChoice [e/c]: ")
+
+		reader := bufio.NewReader(os.Stdin)
+		response, _ := reader.ReadString('\n')
+		response = strings.TrimSpace(strings.ToLower(response))
+
+		if response == "c" {
+			fmt.Println("Cleaning up...")
+			err := cleanWorkspace(plans, cleanOptions{
+				deleteBranches: true,
+				deletePlans:    true,
+				quiet:          true,
+				cleanAll:       true,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to clean workspace: %w", err)
+			}
+			fmt.Println("Done.")
+		} else if response != "e" {
+			fmt.Println("Cancelled.")
+			return nil
+		}
+		// If "e", just proceed with orchestration
 	}
 
 	// Read context
@@ -327,6 +387,30 @@ When one plan MUST wait for another to complete some work first, add a **Depende
 1. List all channels that appear in any "Waits on" section
 2. For each channel, confirm exactly one plan has it in "Signals"
 3. If a channel has no signaler, add a Dependencies section to the appropriate plan
+
+### Integration Plans
+
+**Prefer simple plans that just work after merging.** The best decomposition produces components that work together without additional wiring - merge the branches and you're done.
+
+However, some projects are complex enough that components need to be wired together in code (imports, initialization, main.go). When this is the case, **create a dedicated integration plan** rather than leaving manual work for the user.
+
+**Signs you need an integration plan:**
+- Multiple packages that must be imported and initialized together
+- A main.go that needs to connect several components
+- You're tempted to tell the user "after merging, you'll need to wire X, Y, Z together"
+
+**Integration plan structure:**
+- Waits on completion signals from all parallel plans
+- Wires components together (imports, initialization, main.go)
+- Runs final build to verify everything connects
+- Does NOT signal anything (it's the final plan)
+
+**Example dependency graph:**
+` + "```" + `
+setup → [core, features, dashboard] → integration
+` + "```" + `
+
+**Important:** The integration plan is agent work, not git merging. ` + "`" + `air integrate` + "`" + ` handles git merging after all agents (including the integration agent) complete.
 
 ### After planning
 

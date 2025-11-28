@@ -637,6 +637,90 @@ func TestIntegrate_CommandArgsAreCorrectlyStructured(t *testing.T) {
 }
 
 // ============================================================================
+// State detection tests (air plan)
+// ============================================================================
+
+func TestPlan_BlocksWhenWorktreesExist(t *testing.T) {
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
+
+	env.run(t, nil, "init")
+
+	// Create a plan and run it to create worktree
+	airDir := env.airDir()
+	os.WriteFile(filepath.Join(airDir, "plans", "test.md"), []byte("# Test"), 0644)
+	env.run(t, nil, "run", "test")
+
+	// Now try to run air plan - should be blocked
+	out, _ := env.run(t, nil, "plan")
+
+	if !strings.Contains(out, "Work is already in progress") {
+		t.Error("expected 'Work is already in progress' message")
+	}
+	if !strings.Contains(out, "air clean") {
+		t.Error("expected suggestion to run 'air clean'")
+	}
+}
+
+func TestPlan_ShowsExistingPlansWhenNoWorktrees(t *testing.T) {
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
+
+	env.run(t, nil, "init")
+
+	// Create plans but don't run them (no worktrees)
+	airDir := env.airDir()
+	os.WriteFile(filepath.Join(airDir, "plans", "setup.md"), []byte("# Setup\n**Objective:** Create scaffolding"), 0644)
+	os.WriteFile(filepath.Join(airDir, "plans", "feature.md"), []byte("# Feature\n**Objective:** Add feature"), 0644)
+
+	// Run air plan - should show existing plans and prompt
+	out, _ := env.run(t, nil, "plan")
+
+	if !strings.Contains(out, "Found existing plans") {
+		t.Error("expected 'Found existing plans' message")
+	}
+	if !strings.Contains(out, "setup") {
+		t.Error("expected 'setup' plan in list")
+	}
+	if !strings.Contains(out, "feature") {
+		t.Error("expected 'feature' plan in list")
+	}
+	if !strings.Contains(out, "Extending/modifying") {
+		t.Error("expected extend/modify option")
+	}
+	if !strings.Contains(out, "Starting fresh") {
+		t.Error("expected start fresh option")
+	}
+}
+
+func TestClean_ArchivesPlans(t *testing.T) {
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
+
+	env.run(t, nil, "init")
+
+	// Create plan and run it
+	airDir := env.airDir()
+	plansDir := filepath.Join(airDir, "plans")
+	os.WriteFile(filepath.Join(plansDir, "test.md"), []byte("# Test"), 0644)
+	env.run(t, nil, "run", "test")
+
+	// Clean with --branches (to skip interactive prompt)
+	env.run(t, nil, "clean", "--branches")
+
+	// Plan should be archived
+	if _, err := os.Stat(filepath.Join(plansDir, "test.md")); !os.IsNotExist(err) {
+		t.Error("test.md should be removed from plans/")
+	}
+	if _, err := os.Stat(filepath.Join(plansDir, "archive", "test.md")); os.IsNotExist(err) {
+		t.Error("test.md should be in archive/")
+	}
+}
+
+// ============================================================================
 // Integration test
 // ============================================================================
 
