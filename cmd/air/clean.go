@@ -14,17 +14,22 @@ import (
 var cleanCmd = &cobra.Command{
 	Use:   "clean [names...]",
 	Short: "Remove worktrees and optionally delete branches",
-	Long: `Remove worktrees and optionally delete their branches.
+	Long: `Remove worktrees, kill the tmux session, and optionally delete branches.
 
 With no arguments, removes all worktrees.
-With arguments, removes only the specified worktrees.`,
+With arguments, removes only the specified worktrees.
+
+By default, plans are archived. Use --keep-plans to preserve them for rerunning
+after error recovery.`,
 	RunE: runClean,
 }
 
 var cleanAll bool
+var keepPlans bool
 
 func init() {
 	cleanCmd.Flags().BoolVar(&cleanAll, "branches", false, "Also delete air/* branches")
+	cleanCmd.Flags().BoolVar(&keepPlans, "keep-plans", false, "Keep plans for rerunning (don't archive)")
 }
 
 // worktreeInfo holds info about a worktree for cleanup
@@ -39,6 +44,7 @@ type worktreeInfo struct {
 type cleanOptions struct {
 	deleteBranches bool // delete git branches (vs leave them)
 	deletePlans    bool // delete plans entirely (vs archive them)
+	keepPlans      bool // keep plans in place (don't archive or delete)
 	quiet          bool // minimal output
 	cleanAll       bool // cleaning all items (vs specific names)
 }
@@ -136,7 +142,12 @@ func cleanWorkspaceWorktrees(worktrees []worktreeInfo, opts cleanOptions) error 
 
 	// Handle plans
 	plansDir := getPlansDir()
-	if opts.deletePlans {
+	if opts.keepPlans {
+		// Keep plans in place (for error recovery / rerun)
+		if !opts.quiet {
+			fmt.Println("Plans preserved for rerun")
+		}
+	} else if opts.deletePlans {
 		// Delete plans entirely
 		for _, name := range names {
 			planFile := filepath.Join(plansDir, name+".md")
@@ -369,10 +380,16 @@ func runClean(cmd *cobra.Command, args []string) error {
 		deleteBranches = response == "y" || response == "yes"
 	}
 
+	// Kill tmux session if it exists
+	if err := exec.Command("tmux", "kill-session", "-t", "air").Run(); err == nil {
+		fmt.Println("Killed tmux session: air")
+	}
+
 	// Perform cleanup
 	err = cleanWorkspaceWorktrees(toClean, cleanOptions{
 		deleteBranches: deleteBranches,
 		deletePlans:    false, // archive, don't delete
+		keepPlans:      keepPlans,
 		quiet:          false,
 		cleanAll:       isCleanAll,
 	})

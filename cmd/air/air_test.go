@@ -630,6 +630,75 @@ func TestClean_FailsForNonexistentWorktree(t *testing.T) {
 	}
 }
 
+func TestClean_KeepPlansPreservesPlans(t *testing.T) {
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
+
+	env.run(t, nil, "init")
+
+	// Create a plan and run it
+	airDir := env.airDir()
+	plansDir := filepath.Join(airDir, "plans")
+	os.WriteFile(filepath.Join(plansDir, "myplan.md"), []byte("# My Plan"), 0644)
+	env.run(t, nil, "run", "myplan")
+
+	// Verify worktree exists
+	worktreePath := filepath.Join(airDir, "worktrees", "myplan")
+	if _, err := os.Stat(worktreePath); os.IsNotExist(err) {
+		t.Fatal("worktree should exist before clean")
+	}
+
+	// Clean with --keep-plans
+	env.run(t, nil, "clean", "--keep-plans", "--branches")
+
+	// Worktree should be removed
+	if _, err := os.Stat(worktreePath); !os.IsNotExist(err) {
+		t.Error("worktree should be removed after clean")
+	}
+
+	// Plan should still be in plans/ (not archived)
+	planPath := filepath.Join(plansDir, "myplan.md")
+	if _, err := os.Stat(planPath); os.IsNotExist(err) {
+		t.Error("plan should still exist in plans/ with --keep-plans")
+	}
+
+	// Plan should NOT be in archive/
+	archivedPath := filepath.Join(plansDir, "archive", "myplan.md")
+	if _, err := os.Stat(archivedPath); !os.IsNotExist(err) {
+		t.Error("plan should not be archived with --keep-plans")
+	}
+}
+
+func TestClean_DefaultArchivesPlans(t *testing.T) {
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
+
+	env.run(t, nil, "init")
+
+	// Create a plan and run it
+	airDir := env.airDir()
+	plansDir := filepath.Join(airDir, "plans")
+	os.WriteFile(filepath.Join(plansDir, "myplan.md"), []byte("# My Plan"), 0644)
+	env.run(t, nil, "run", "myplan")
+
+	// Clean without --keep-plans (default behavior)
+	env.run(t, nil, "clean", "--branches")
+
+	// Plan should NOT be in plans/
+	planPath := filepath.Join(plansDir, "myplan.md")
+	if _, err := os.Stat(planPath); !os.IsNotExist(err) {
+		t.Error("plan should be removed from plans/ by default")
+	}
+
+	// Plan should be in archive/
+	archivedPath := filepath.Join(plansDir, "archive", "myplan.md")
+	if _, err := os.Stat(archivedPath); os.IsNotExist(err) {
+		t.Error("plan should be archived by default")
+	}
+}
+
 // ============================================================================
 // air version test
 // ============================================================================
