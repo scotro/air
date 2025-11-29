@@ -101,6 +101,19 @@ func cleanWorkspaceWorktrees(worktrees []worktreeInfo, opts cleanOptions) error 
 		}
 	}
 
+	// Clean up empty parent directories (workspace mode leaves empty repo dirs)
+	worktreesDir := getWorktreesDir()
+	if entries, err := os.ReadDir(worktreesDir); err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() {
+				dirPath := filepath.Join(worktreesDir, entry.Name())
+				if isEmpty, _ := isDirEmpty(dirPath); isEmpty {
+					os.Remove(dirPath)
+				}
+			}
+		}
+	}
+
 	// Collect names for channel/agent/plan cleanup
 	names := make([]string, len(worktrees))
 	for i, wt := range worktrees {
@@ -224,6 +237,15 @@ func cleanWorkspace(names []string, opts cleanOptions) error {
 	return cleanWorkspaceWorktrees(worktrees, opts)
 }
 
+// isDirEmpty returns true if the directory exists and contains no entries
+func isDirEmpty(path string) (bool, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return false, err
+	}
+	return len(entries) == 0, nil
+}
+
 // getExistingWorktrees returns the names of existing worktrees
 func getExistingWorktrees() []string {
 	worktreesDir := getWorktreesDir()
@@ -335,7 +357,24 @@ func runClean(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(worktrees) == 0 {
-		fmt.Println("No worktrees to clean.")
+		// Clean up any empty directories that may have been left behind
+		cleanedAny := false
+		if entries, err := os.ReadDir(worktreesDir); err == nil {
+			for _, entry := range entries {
+				if entry.IsDir() {
+					dirPath := filepath.Join(worktreesDir, entry.Name())
+					if isEmpty, _ := isDirEmpty(dirPath); isEmpty {
+						os.Remove(dirPath)
+						cleanedAny = true
+					}
+				}
+			}
+		}
+		if cleanedAny {
+			fmt.Println("Cleaned up empty worktree directories.")
+		} else {
+			fmt.Println("No worktrees to clean.")
+		}
 		return nil
 	}
 
