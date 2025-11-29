@@ -719,6 +719,86 @@ func TestVersion_ShowsVersion(t *testing.T) {
 }
 
 // ============================================================================
+// air doctor tests
+// ============================================================================
+
+func TestDoctor_ChecksEnvironment(t *testing.T) {
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
+
+	out, err := env.run(t, nil, "doctor")
+	if err != nil {
+		t.Fatalf("air doctor failed: %v\n%s", err, out)
+	}
+
+	// Should check for required tools
+	if !strings.Contains(out, "git") {
+		t.Error("doctor output should mention git")
+	}
+	if !strings.Contains(out, "tmux") {
+		t.Error("doctor output should mention tmux")
+	}
+	if !strings.Contains(out, "claude") {
+		t.Error("doctor output should mention claude")
+	}
+}
+
+func TestDoctor_DetectsGitRepo(t *testing.T) {
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
+
+	out, err := env.run(t, nil, "doctor")
+	if err != nil {
+		t.Fatalf("air doctor failed: %v\n%s", err, out)
+	}
+
+	if !strings.Contains(out, "git repo") {
+		t.Error("doctor should check for git repo")
+	}
+}
+
+func TestDoctor_DetectsNotInitialized(t *testing.T) {
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
+
+	// Don't run air init - should show as not initialized
+	out, err := env.run(t, nil, "doctor")
+	if err != nil {
+		t.Fatalf("air doctor failed: %v\n%s", err, out)
+	}
+
+	if !strings.Contains(out, "air init") {
+		t.Error("doctor should check for air init status")
+	}
+	// Should show failure for air init since we didn't initialize
+	if !strings.Contains(out, "not initialized") {
+		t.Error("doctor should report air not initialized")
+	}
+}
+
+func TestDoctor_DetectsInitialized(t *testing.T) {
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
+
+	// Initialize air
+	env.run(t, nil, "init")
+
+	out, err := env.run(t, nil, "doctor")
+	if err != nil {
+		t.Fatalf("air doctor failed: %v\n%s", err, out)
+	}
+
+	// Should show air init as configured
+	if strings.Contains(out, "not initialized") {
+		t.Error("doctor should report air as initialized after init")
+	}
+}
+
+// ============================================================================
 // air integrate tests
 // ============================================================================
 

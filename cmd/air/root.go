@@ -41,6 +41,9 @@ func init() {
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(integrateCmd)
 	rootCmd.AddCommand(cleanCmd)
+
+	// Utility commands
+	rootCmd.AddCommand(doctorCmd)
 	rootCmd.AddCommand(versionCmd)
 
 	// Agent commands (used during execution, not by users)
