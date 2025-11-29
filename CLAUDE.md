@@ -23,7 +23,10 @@ cmd/air/           # CLI commands (cobra)
 ├── status.go      # air status
 ├── integrate.go   # air integrate
 ├── clean.go       # air clean
-└── agent.go       # air agent (coordination commands)
+├── doctor.go      # air doctor
+├── agent.go       # air agent (coordination commands)
+├── validate.go    # plan dependency validation
+└── paths.go       # path helpers for ~/.air/<project>/
 internal/          # (future) shared packages
 ```
 
@@ -41,6 +44,8 @@ internal/          # (future) shared packages
 1. Non-invasive: Never touch `.claude/` or `CLAUDE.md` in user projects
 2. Wrapper: We wrap `claude` with context, we don't configure it
 3. Our namespace: Everything lives in `~/.air/<project>/`
+4. Destroy and rerun: For error recovery, clean up and rerun (`air clean --keep-plans`) rather than complex checkpointing
+5. Prompt-driven behavior: Agent behaviors (test before done, conflict avoidance) are in context.md prompts, not Air code
 
 ## Testing
 
