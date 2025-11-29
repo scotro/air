@@ -944,6 +944,47 @@ func TestClean_ArchivesPlans(t *testing.T) {
 	}
 }
 
+func TestClean_RemovesEmptyOrphanDirectories(t *testing.T) {
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
+
+	env.run(t, nil, "init")
+
+	// Simulate leftover empty directories from workspace mode cleanup
+	// (this happens when worktrees/<repo>/<plan> is cleaned but <repo> dir remains)
+	airDir := env.airDir()
+	worktreesDir := filepath.Join(airDir, "worktrees")
+	os.MkdirAll(filepath.Join(worktreesDir, "orphan-repo-1"), 0755)
+	os.MkdirAll(filepath.Join(worktreesDir, "orphan-repo-2"), 0755)
+
+	// Verify the orphan directories exist
+	if _, err := os.Stat(filepath.Join(worktreesDir, "orphan-repo-1")); os.IsNotExist(err) {
+		t.Fatal("orphan directory should exist before clean")
+	}
+
+	// Run clean - should clean up empty directories
+	// (they may be treated as worktrees or cleaned as orphans, either way they should be gone)
+	env.run(t, nil, "clean", "--branches")
+
+	// Verify the orphan directories are removed
+	if _, err := os.Stat(filepath.Join(worktreesDir, "orphan-repo-1")); !os.IsNotExist(err) {
+		t.Error("orphan-repo-1 should be removed after clean")
+	}
+	if _, err := os.Stat(filepath.Join(worktreesDir, "orphan-repo-2")); !os.IsNotExist(err) {
+		t.Error("orphan-repo-2 should be removed after clean")
+	}
+
+	// Verify 'air plan' works (doesn't think work is in progress)
+	out, err := env.run(t, nil, "plan", "list")
+	if err != nil {
+		t.Fatalf("air plan list failed: %v\n%s", err, out)
+	}
+	if strings.Contains(out, "Work is already in progress") {
+		t.Error("air plan should not report work in progress after cleaning empty directories")
+	}
+}
+
 // ============================================================================
 // Integration test
 // ============================================================================
