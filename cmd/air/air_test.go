@@ -860,6 +860,96 @@ func TestIntegrate_CommandArgsAreCorrectlyStructured(t *testing.T) {
 	}
 }
 
+func TestIntegrate_WorkspaceContextContainsRepos(t *testing.T) {
+	t.Parallel()
+
+	info := &WorkspaceInfo{
+		Mode:  ModeWorkspace,
+		Name:  "myteam",
+		Root:  "/home/user/myteam",
+		Repos: []string{"authapi", "schema", "usersvc"},
+	}
+
+	context := buildWorkspaceIntegrationContext(info)
+
+	// Should contain workspace name
+	if !strings.Contains(context, "myteam") {
+		t.Error("workspace context missing workspace name")
+	}
+
+	// Should list all repos
+	for _, repo := range info.Repos {
+		if !strings.Contains(context, repo) {
+			t.Errorf("workspace context missing repo: %s", repo)
+		}
+	}
+
+	// Should contain workspace root path
+	if !strings.Contains(context, info.Root) {
+		t.Error("workspace context missing root path")
+	}
+
+	// Should have instructions for checking each repo
+	if !strings.Contains(context, "cd /home/user/myteam/authapi") {
+		t.Error("workspace context missing repo-specific commands")
+	}
+
+	// Should mention cross-repo dependencies
+	if !strings.Contains(context, "cross-repo") {
+		t.Error("workspace context should mention cross-repo handling")
+	}
+}
+
+func TestIntegrate_SingleModeContextHasMergeInstructions(t *testing.T) {
+	t.Parallel()
+
+	// integrationContext is the const for single mode
+	if !strings.Contains(integrationContext, "git merge") {
+		t.Error("integration context missing git merge instructions")
+	}
+
+	if !strings.Contains(integrationContext, "air plan") {
+		t.Error("integration context missing air plan commands")
+	}
+
+	if !strings.Contains(integrationContext, "merge-tree") {
+		t.Error("integration context missing conflict check command")
+	}
+
+	if !strings.Contains(integrationContext, "air clean") {
+		t.Error("integration context missing cleanup reminder")
+	}
+}
+
+func TestIntegrate_WorkspaceModeUsesCorrectInitialPrompt(t *testing.T) {
+	t.Parallel()
+
+	singleInfo := &WorkspaceInfo{Mode: ModeSingle, Name: "test", Root: "/tmp/test"}
+	singleCmd := buildIntegrateCommand("prompt", singleInfo)
+
+	wsInfo := &WorkspaceInfo{
+		Mode:  ModeWorkspace,
+		Name:  "myteam",
+		Root:  "/tmp/myteam",
+		Repos: []string{"repo1", "repo2"},
+	}
+	wsCmd := buildIntegrateCommand("prompt", wsInfo)
+
+	// Last arg is the initial prompt
+	singlePrompt := singleCmd.Args[len(singleCmd.Args)-1]
+	wsPrompt := wsCmd.Args[len(wsCmd.Args)-1]
+
+	// Single mode prompt should NOT mention "all repositories"
+	if strings.Contains(singlePrompt, "all repositories") {
+		t.Error("single mode prompt should not mention 'all repositories'")
+	}
+
+	// Workspace mode prompt SHOULD mention "all repositories"
+	if !strings.Contains(wsPrompt, "all repositories") {
+		t.Error("workspace mode prompt should mention 'all repositories'")
+	}
+}
+
 // ============================================================================
 // State detection tests (air plan)
 // ============================================================================
@@ -982,6 +1072,172 @@ func TestClean_RemovesEmptyOrphanDirectories(t *testing.T) {
 	}
 	if strings.Contains(out, "Work is already in progress") {
 		t.Error("air plan should not report work in progress after cleaning empty directories")
+	}
+}
+
+// ============================================================================
+// air status tests
+// ============================================================================
+
+func TestStatus_NoWorktrees(t *testing.T) {
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
+
+	env.run(t, nil, "init")
+
+	out, err := env.run(t, nil, "status")
+	if err != nil {
+		t.Fatalf("air status failed: %v\n%s", err, out)
+	}
+
+	if !strings.Contains(out, "No active agents") {
+		t.Error("expected 'No active agents' message")
+	}
+}
+
+func TestStatus_ShowsActiveAgents(t *testing.T) {
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
+
+	env.run(t, nil, "init")
+
+	// Create and run a plan to create a worktree
+	airDir := env.airDir()
+	os.WriteFile(filepath.Join(airDir, "plans", "feature.md"), []byte("# Feature\n**Objective:** Test"), 0644)
+	env.run(t, nil, "run", "feature")
+
+	out, err := env.run(t, nil, "status")
+	if err != nil {
+		t.Fatalf("air status failed: %v\n%s", err, out)
+	}
+
+	// Should show the agent name
+	if !strings.Contains(out, "feature") {
+		t.Error("status should show 'feature' agent")
+	}
+	// Should show running status with bullet
+	if !strings.Contains(out, "running") {
+		t.Error("status should show 'running' status")
+	}
+	if !strings.Contains(out, "●") {
+		t.Error("status should show bullet for running agent")
+	}
+	// Should show "Agents" header
+	if !strings.Contains(out, "Agents") {
+		t.Error("status should show 'Agents' header")
+	}
+}
+
+func TestStatus_ShowsDoneAgents(t *testing.T) {
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
+
+	env.run(t, nil, "init")
+
+	// Create and run a plan
+	airDir := env.airDir()
+	os.WriteFile(filepath.Join(airDir, "plans", "complete.md"), []byte("# Complete"), 0644)
+	env.run(t, nil, "run", "complete")
+
+	// Manually create done channel to simulate agent completion
+	channelsDir := filepath.Join(airDir, "channels")
+	doneDir := filepath.Join(channelsDir, "done")
+	os.MkdirAll(doneDir, 0755)
+	os.WriteFile(filepath.Join(doneDir, "complete.json"), []byte(`{"agent":"complete","sha":"abc123"}`), 0644)
+
+	out, err := env.run(t, nil, "status")
+	if err != nil {
+		t.Fatalf("air status failed: %v\n%s", err, out)
+	}
+
+	// Should show done status with checkmark
+	if !strings.Contains(out, "done") {
+		t.Error("status should show 'done' for completed agent")
+	}
+	if !strings.Contains(out, "✓") {
+		t.Error("status should show checkmark for done agent")
+	}
+}
+
+func TestStatus_ShowsCoordinationChannels(t *testing.T) {
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
+
+	env.run(t, nil, "init")
+
+	// Create a plan and run it
+	airDir := env.airDir()
+	os.WriteFile(filepath.Join(airDir, "plans", "producer.md"), []byte("# Producer"), 0644)
+	env.run(t, nil, "run", "producer")
+
+	// Create a coordination channel (not a done marker)
+	channelsDir := filepath.Join(airDir, "channels")
+	os.MkdirAll(channelsDir, 0755)
+	payload := `{"agent":"producer","sha":"def456","branch":"air/producer"}`
+	os.WriteFile(filepath.Join(channelsDir, "data-ready.json"), []byte(payload), 0644)
+
+	out, err := env.run(t, nil, "status")
+	if err != nil {
+		t.Fatalf("air status failed: %v\n%s", err, out)
+	}
+
+	// Should show channels section
+	if !strings.Contains(out, "Channels") {
+		t.Error("status should show 'Channels' section")
+	}
+	if !strings.Contains(out, "data-ready") {
+		t.Error("status should show 'data-ready' channel")
+	}
+	if !strings.Contains(out, "signaled by producer") {
+		t.Error("status should show who signaled the channel")
+	}
+}
+
+func TestStatus_ShowsUncommittedChanges(t *testing.T) {
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
+
+	env.run(t, nil, "init")
+
+	// Create and run a plan
+	airDir := env.airDir()
+	os.WriteFile(filepath.Join(airDir, "plans", "wip.md"), []byte("# WIP"), 0644)
+	env.run(t, nil, "run", "wip")
+
+	// Create an uncommitted file in the worktree
+	wtPath := filepath.Join(airDir, "worktrees", "wip")
+	os.WriteFile(filepath.Join(wtPath, "uncommitted.txt"), []byte("uncommitted change"), 0644)
+
+	out, err := env.run(t, nil, "status")
+	if err != nil {
+		t.Fatalf("air status failed: %v\n%s", err, out)
+	}
+
+	// Should show uncommitted count
+	if !strings.Contains(out, "uncommitted") {
+		t.Error("status should show uncommitted changes count")
+	}
+}
+
+func TestStatus_HandlesUninitializedGracefully(t *testing.T) {
+	t.Parallel()
+	env := setupTestRepo(t)
+	defer env.cleanup()
+
+	// Don't run init - status should still work gracefully
+	out, err := env.run(t, nil, "status")
+	if err != nil {
+		t.Fatalf("status failed: %v\n%s", err, out)
+	}
+
+	// Should show no active agents message
+	if !strings.Contains(out, "No active agents") {
+		t.Error("expected 'No active agents' message for uninitialized project")
 	}
 }
 
