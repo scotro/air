@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -91,7 +92,8 @@ func TestDetectMode_SkipsHiddenDirs(t *testing.T) {
 	}
 }
 
-// setupTestWorkspace creates a temp workspace with multiple child repos
+// setupTestWorkspace creates a temp workspace with multiple child repos (fake .git dirs)
+// Use this for quick mode detection tests that don't need real git operations.
 func setupTestWorkspace(t *testing.T) *testEnv {
 	t.Helper()
 
@@ -108,12 +110,64 @@ func setupTestWorkspace(t *testing.T) *testEnv {
 		t.Fatalf("failed to create fake home: %v", err)
 	}
 
-	// Create child repos
+	// Create child repos (fake .git dirs for mode detection)
 	repos := []string{"authapi", "schema", "usersvc"}
 	for _, repo := range repos {
 		repoDir := filepath.Join(tmpDir, repo)
 		os.Mkdir(repoDir, 0755)
 		os.Mkdir(filepath.Join(repoDir, ".git"), 0755)
+	}
+
+	return &testEnv{
+		dir:  tmpDir,
+		home: fakeHome,
+		cleanup: func() {
+			os.RemoveAll(tmpDir)
+			os.RemoveAll(fakeHome)
+		},
+	}
+}
+
+// setupTestWorkspaceWithGit creates a temp workspace with real git repos.
+// Use this for tests that need actual git operations (worktrees, commits, etc.)
+func setupTestWorkspaceWithGit(t *testing.T) *testEnv {
+	t.Helper()
+
+	tmpDir, err := os.MkdirTemp("", "air-workspace-git-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+
+	fakeHome, err := os.MkdirTemp("", "air-home-*")
+	if err != nil {
+		os.RemoveAll(tmpDir)
+		t.Fatalf("failed to create fake home: %v", err)
+	}
+
+	// Create real git repos
+	repos := []string{"authapi", "schema", "usersvc"}
+	for _, repo := range repos {
+		repoDir := filepath.Join(tmpDir, repo)
+		os.Mkdir(repoDir, 0755)
+
+		// Initialize git repo
+		cmd := exec.Command("git", "init", "-b", "main")
+		cmd.Dir = repoDir
+		if err := cmd.Run(); err != nil {
+			os.RemoveAll(tmpDir)
+			os.RemoveAll(fakeHome)
+			t.Fatalf("failed to init git repo %s: %v", repo, err)
+		}
+
+		// Configure git user
+		exec.Command("git", "-C", repoDir, "config", "user.email", "test@test.com").Run()
+		exec.Command("git", "-C", repoDir, "config", "user.name", "Test User").Run()
+
+		// Create initial commit
+		readme := filepath.Join(repoDir, "README.md")
+		os.WriteFile(readme, []byte("# "+repo+"\n"), 0644)
+		exec.Command("git", "-C", repoDir, "add", ".").Run()
+		exec.Command("git", "-C", repoDir, "commit", "-m", "Initial commit").Run()
 	}
 
 	return &testEnv{
